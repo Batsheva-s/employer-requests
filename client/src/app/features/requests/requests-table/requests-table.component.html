@@ -70,5 +70,12 @@
   </ng-container>
 
   <tr mat-header-row *matHeaderRowDef="columns"></tr>
-  <tr mat-row *matRowDef="let request; columns: columns" class="row" (click)="open.emit(request.id)"></tr>
+  <tr
+    mat-row
+    *matRowDef="let request; columns: columns"
+    class="row"
+    tabindex="0"
+    (click)="open.emit(request.id)"
+    (keydown.enter)="open.emit(request.id)"
+  ></tr>
 </table>

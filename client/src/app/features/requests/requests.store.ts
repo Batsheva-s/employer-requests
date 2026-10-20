@@ -77,6 +77,9 @@ export class RequestsStore {
 
   /** New filters start again from the first page, and the old selection no longer applies. */
   setFilters(filters: RequestFilters): void {
+    if (sameValue(filters, this.filters())) {
+      return; // the same filters again (a letter typed and deleted): keep the page, the selection and the results
+    }
     this.query.update((query) => ({ ...query, ...filters, page: 1 }));
     this.clearSelection();
   }

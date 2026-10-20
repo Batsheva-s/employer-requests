@@ -53,7 +53,7 @@ export class RequestFiltersComponent {
         debounceTime(FILTER_DEBOUNCE_MS),
         map(() => this.form.getRawValue()),
         filter((filters) => isDateRangeValid(filters)),
-        // Typing and deleting a letter within 300 ms leaves the filters as they were – no new search.
+        // Filters equal to the last ones emitted are dropped (the store also ignores filters it already has).
         distinctUntilChanged(sameValue),
         takeUntilDestroyed(),
       )

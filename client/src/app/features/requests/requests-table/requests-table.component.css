@@ -6,7 +6,8 @@
   cursor: pointer;
 }
 
-.row:hover {
+.row:hover,
+.row:focus-visible {
   background: var(--mat-sys-surface-container-high);
 }
 

@@ -7,7 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { forkJoin } from 'rxjs';
+import { Subscription, forkJoin } from 'rxjs';
 import { describeHttpError, isConflict } from '../../../core/http/http-error.util';
 import { STATUS_LABELS } from '../../../core/i18n/labels';
 import { RequestDetails, RequestStatus, RequestStatusChange } from '../../../core/models/request.models';
@@ -55,16 +55,19 @@ export class RequestDetailsDialogComponent {
   /** Shown after a 409: someone else changed the request, and the dialog now shows the current state. */
   protected readonly conflictMessage = signal<string | null>(null);
 
+  private loadSubscription?: Subscription;
+
   constructor() {
     this.load();
   }
 
-  /** Loads the request and its history together. */
+  /** Loads the request and its history together. A load still on its way is cancelled: only the newest counts. */
   protected load(): void {
+    this.loadSubscription?.unsubscribe();
     this.loading.set(true);
     this.loadError.set(null);
 
-    forkJoin({ request: this.api.getById(this.data.requestId), history: this.api.getHistory(this.data.requestId) })
+    this.loadSubscription = forkJoin({ request: this.api.getById(this.data.requestId), history: this.api.getHistory(this.data.requestId) })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ request, history }) => {
