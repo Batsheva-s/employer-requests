@@ -1,0 +1,79 @@
+# Run by hand: Actions → Performance → Run workflow. Creates 100,000 test requests in a SQL Server container, times
+# the API calls (time_api.py), and runs measure.sql three times – warm-up, statistics, actual plans. Everything it
+# produces is attached to the run as the "performance" artifact. The numbers in docs/PERFORMANCE.md come from a run
+# of this workflow.
+name: Performance
+
+on:
+  workflow_dispatch:
+
+jobs:
+  measure:
+    name: Measure on 100,000 requests
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Ci_Test_Pass_123!"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Ci_Test_Pass_123!' -Q 'SELECT 1' -b -o /dev/null"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 20s
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      ConnectionStrings__Requests: "Server=localhost,1433;Database=EmployerRequests;User Id=sa;Password=Ci_Test_Pass_123!;TrustServerCertificate=True"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Create 100,000 test requests
+        run: dotnet run --project src/EmployerRequests.Api --configuration Release --no-build -- seed
+
+      - name: Start the API, logging the SQL that EF Core sends
+        env:
+          Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Information
+        run: |
+          mkdir -p out
+          nohup dotnet run --project src/EmployerRequests.Api --configuration Release --no-build > out/api.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf "http://localhost:5080/api/requests?pageSize=1" -o /dev/null && break; sleep 1; done
+
+      - name: Time the API calls
+        run: python3 docs/performance/time_api.py > out/api-timings.md
+
+      - name: Run measure.sql – warm-up, statistics, actual plans
+        run: |
+          container=${{ job.services.sqlserver.id }}
+          sed '1s/^\xEF\xBB\xBF//' docs/performance/measure.sql > /tmp/measure.sql
+          printf 'SET STATISTICS XML ON;\nGO\n' > /tmp/plans-on.sql
+          docker cp /tmp/measure.sql "$container:/tmp/measure.sql"
+          docker cp /tmp/plans-on.sql "$container:/tmp/plans-on.sql"
+          run_sql() {
+            docker exec "$container" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Ci_Test_Pass_123!' \
+              -d EmployerRequests -f 65001 -y 0 "$@"
+          }
+          run_sql -i /tmp/measure.sql -o /tmp/warm-up.out
+          run_sql -i /tmp/measure.sql -o /tmp/statistics.out
+          run_sql -i /tmp/plans-on.sql,/tmp/measure.sql -o /tmp/plans.out
+          docker cp "$container:/tmp/statistics.out" out/measure-statistics.out
+          docker cp "$container:/tmp/plans.out" out/measure-plans.out
+          python3 docs/performance/export_plans.py out/measure-plans.out out/plans
+
+      - name: Attach the results to the run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance
+          path: out/

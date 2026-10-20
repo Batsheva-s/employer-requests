@@ -7,6 +7,9 @@ Every call is made once, and then 20 more times. The table shows the first call 
 percentile of the other 20, in milliseconds, as measured by the client (HTTP included). Status changes are
 measured on 50 different requests, after 5 warm-up changes.
 The scenarios follow the numbering of measure.sql. Standard library only.
+
+It makes real changes: the status of requests 1–55 changes, with history rows. Run it on test data, and run
+`dotnet run --project src/EmployerRequests.Api -- seed` afterwards for a fresh start.
 """
 import json
 import statistics

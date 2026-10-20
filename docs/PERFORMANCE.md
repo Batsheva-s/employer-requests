@@ -10,6 +10,7 @@
 
 | סביבת המדידה | |
 |---|---|
+| איך | ה-Workflow [`performance.yml`](../.github/workflows/performance.yml), שרץ ידנית ב-GitHub Actions ומצרף להרצה את כל הפלט |
 | מכונה | GitHub Actions: ‏4 ליבות (AMD EPYC 7763), ‏16GB |
 | בסיס נתונים | SQL Server 2022 Developer (16.0.4305.5) ב-Docker, ‏Collation ‏`SQL_Latin1_General_CP1_CI_AS` – כמו ב-LocalDB |
 | נתונים | ‏100,000 פניות מפקודת `seed`. הטבלה: ‏1,948 דפים של 8KB ‏(15.2MB) |
@@ -208,8 +209,9 @@ ORDER BY COUNT(*) DESC, [r].[AssignedTo];
 
 1. **נתונים:** ‏`dotnet run --project src/EmployerRequests.Api -- seed`.
 2. **SQL:** לפתוח את [`performance/measure.sql`](performance/measure.sql) ב-SSMS, ‏Ctrl+M (Include Actual Execution Plan), ולהריץ פעמיים. בלשונית Messages – הקריאות והזמנים; בלשונית Execution plan – התוכניות.
-3. **API:** להריץ את השרת, ואז `python docs/performance/time_api.py` (Python 3.10 ומעלה, בלי חבילות נוספות).
+3. **API:** להריץ את השרת, ואז `python docs/performance/time_api.py` (Python 3.10 ומעלה, בלי חבילות נוספות). הסקריפט משנה באמת את הסטטוס של פניות 1–55, ולכן אחריו כדאי ליצור את הנתונים מחדש.
 4. **ה-SQL ש-EF Core שולח:** להריץ את השרת כך: `dotnet run --project src/EmployerRequests.Api -- --Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command=Information`.
-5. **התוכניות שנשמרו:** כל קובץ ב-[`performance/plans`](performance/plans) נפתח ב-SSMS כתרשים.
+5. **התוכניות שנשמרו:** כל קובץ ב-[`performance/plans`](performance/plans) נפתח ב-SSMS כתרשים. הן נחתכו מפלט ההרצה בעזרת [`export_plans.py`](performance/export_plans.py).
+6. **הכול יחד, בענן:** ‏Actions ← Performance ← Run workflow. הפלט – זמני ה-API, הסטטיסטיקות, התוכניות והלוג עם ה-SQL – מצורף להרצה.
 
 המספרים במכונה אחרת יהיו שונים; הקריאות והתוכניות יהיו כמעט זהות.
