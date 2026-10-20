@@ -71,7 +71,7 @@ client/                             Angular 21
 docs/                               תוכנית עבודה, ביצועים
 ```
 
-**כיוון התלויות:** `Api → Application → Domain`, ו-`Infrastructure → Application`. ה-Application מגדיר ממשקים (`IRequestRepository`, ‏`ISummaryCache`, ‏`ICurrentUser`), ו-Infrastructure ו-Api מממשים אותם.
+**כיוון התלויות:** `Api → Application → Domain`, ו-`Infrastructure → Application`; ‏Api מכיר גם את Infrastructure, רק כדי לרשום אותו ב-DI. ה-Application מגדיר ממשקים (`IRequestRepository`, ‏`ISummaryCache`, ‏`ICurrentUser`), ו-Infrastructure ו-Api מממשים אותם.
 
 ## 4. המשימות
 
@@ -144,7 +144,7 @@ docs/                               תוכנית עבודה, ביצועים
 | מזהה | משימה | מה נדרש | תוצר | תלויה ב- | הערכה | דרישה |
 |---|---|---|---|---|---|---|
 | A1 | שלד האפליקציה | Angular 21; ‏Material; עברית מימין לשמאל; Proxy ל-API; ‏Interceptor שמוסיף את שם המשתמש | אפליקציה שרצה | P3 | 1.5 | R5 |
-| A2 | שכבת ה-API | מודלים שתואמים ל-DTOs; שירות HTTP; תרגום Problem Details להודעות בעברית | `RequestsApi` | A1, Q1 | 1.5 | R5 |
+| A2 | שכבת ה-API | מודלים שתואמים ל-DTOs; שירות HTTP; תרגום Problem Details להודעות בעברית | `RequestsApiService` | A1, Q1 | 1.5 | R5 |
 | A3 | Store של הרשימה | מצב הסינון והדפדוף; ‏`switchMap` שמבטל בקשה קודמת; מצבי Loading / Empty / Error | `RequestsStore` | A2 | 2 | R5 |
 | A4 | סינון, טבלה, מיון ודפדוף | Debounce לשדות הטקסט; טבלה עם מיון ודפדוף בצד השרת | רכיבי סינון וטבלה | A3 | 3 | R5 |
 | A5 | סיכום | הצגת ה-Aggregations; טעינה מחדש כשמשתנה הסינון ואחרי עדכון | רכיב סיכום | A3, Q4 | 1.5 | R5 |

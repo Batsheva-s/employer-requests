@@ -75,13 +75,17 @@ dotnet run --project src/EmployerRequests.Api -- seed           # מוחק את 
 dotnet run --project src/EmployerRequests.Api -- seed 250000    # כמות אחרת (עד 1,000,000)
 ```
 
-הנתונים בדויים ונוצרים מ-Seed אקראי קבוע, כך שכל יצירה מחדש מייצרת אותן פניות. התאריכים יחסיים לרגע היצירה. הפקודה עובדת רק בסביבת Development.
+הנתונים בדויים ונוצרים מ-Seed אקראי קבוע, כך שכל יצירה מחדש מייצרת אותן פניות. התאריכים יחסיים לרגע היצירה, ולפניות שנוצרו כך אין היסטוריה – היא מתחילה בשינוי הראשון שנעשה דרך המערכת. לפני הפקודה עוצרים את השרת אם הוא רץ: היא מוחקת את בסיס הנתונים שהוא עובד מולו. הפקודה עובדת רק בסביבת Development.
 
 ### בדיקות
 
 ```bash
-dotnet test                                # שרת: יחידה + Integration מול SQL Server
-cd client && npm test -- --watch=false     # לקוח
+# שרת: יחידה + Integration מול SQL Server
+dotnet test
+
+# לקוח
+cd client
+npm test -- --watch=false
 ```
 
 בדיקות ה-Integration יוצרות בסיס נתונים משלהן (אחד לכל מחלקת בדיקות) ומוחקות אותו בסוף. ברירת המחדל היא LocalDB; לשרת אחר מגדירים מחרוזת התחברות (בלי שם בסיס נתונים) במשתנה `TESTS_SQLSERVER_CONNECTION`, למשל מול ה-Docker:
@@ -89,11 +93,11 @@ cd client && npm test -- --watch=false     # לקוח
 
 ## מה לנסות
 
-1. **סינון, חיפוש, מיון ודפדוף – בצד השרת.** כל שינוי מבקש מהשרת עמוד אחד. בכלי המפתחים של הדפדפן (F12 ← Network) רואים שבזמן הקלדה בשדה החיפוש יוצאת בקשה אחת, 300ms אחרי ההקשה האחרונה, ושבקשה שעוד לא חזרה כשהסינון השתנה מסומנת `(canceled)`: הדפדפן ביטל אותה, והשרת ביטל את השאילתה שלה.
+1. **סינון, חיפוש, מיון ודפדוף – בצד השרת.** כל שינוי מבקש מהשרת עמוד אחד. בכלי המפתחים של הדפדפן (F12 ← Network) רואים שבזמן הקלדה בשדה החיפוש יוצאות בקשות רק 300ms אחרי ההקשה האחרונה – אחת לרשימה ואחת לסיכום – ושבקשה שעוד לא חזרה כשהסינון השתנה מסומנת `(canceled)`: הדפדפן ביטל אותה, והשרת ביטל את השאילתה שלה.
 2. **עדכון סטטוס והיסטוריה.** לחיצה על פנייה פותחת את פרטיה. הרשימה מציעה רק את הסטטוסים שמותר לעבור אליהם, וההיסטוריה מראה מי שינה ומתי. השם נלקח מהשדה בסרגל העליון.
 3. **שני משתמשים על אותה פנייה (409).** פותחים את אותה פנייה בשתי לשוניות. מעדכנים סטטוס בראשונה, ואחר כך בשנייה, שעדיין מציגה את הגרסה הקודמת. השנייה מקבלת הודעה שהפנייה עודכנה בינתיים והשינוי שלה לא נשמר, והחלון מציג את המצב העדכני – כולל השינוי של הלשונית הראשונה בהיסטוריה.
 4. **עדכון מרוכז.** מסמנים כמה פניות, כולל אחת בסטטוס "הושלמה", ובוחרים "ממתינה". התוצאה מפרטת כמה פניות עודכנו, ולכל פנייה שלא עודכנה – למה (מ"הושלמה" אפשר לעבור רק ל"בטיפול").
-5. **נתונים מסכמים.** הכרטיסים בראש המסך מחושבים לפי אותו סינון כמו הרשימה, ומתעדכנים מיד אחרי כל שינוי סטטוס.
+5. **נתונים מסכמים.** הכרטיסים בראש המסך מחושבים לפי אותו סינון כמו הרשימה, ומתעדכנים אחרי כל שינוי סטטוס: בסגירת חלון הפרטים, ומיד אחרי עדכון מרוכז.
 6. **ב-Swagger:** ‏`pageSize=500` מחזיר 400 עם שם השדה; מעבר סטטוס אסור מחזיר 422 עם הסטטוסים המותרים; גרסה ישנה מחזירה 409.
 
 ## טכנולוגיות וגרסאות
@@ -111,7 +115,7 @@ cd client && npm test -- --watch=false     # לקוח
 | בדיקות לקוח | Vitest דרך ה-Angular CLI | 4.1 |
 | CI | GitHub Actions: בנייה ובדיקות של השרת (מול SQL Server בקונטיינר) ושל הלקוח | |
 
-**על ‎.NET 9:** זו הגרסה שמותקנת בסביבת הפיתוח. התמיכה בה מסתיימת ב-10 בנובמבר 2026. המעבר ל-‎.NET 10 ‏(LTS) הוא שינוי של `TargetFramework` ב-[`Directory.Build.props`](Directory.Build.props) ושל גרסאות החבילות ב-[`Directory.Packages.props`](Directory.Packages.props); ‏[`global.json`](global.json) כבר מאפשר לבנות גם עם SDK חדש יותר.
+**על ‎.NET 9:** זו הגרסה שמותקנת בסביבת הפיתוח. התמיכה בה מסתיימת ב-10 בנובמבר 2026. המעבר ל-‎.NET 10 ‏(LTS) הוא שינוי של `TargetFramework` ב-[`Directory.Build.props`](Directory.Build.props) ושל גרסאות החבילות ב-[`Directory.Packages.props`](Directory.Packages.props). ‏[`global.json`](global.json) מאפשר לבנות גם עם SDK חדש יותר (כללי הניתוח נשארים של ‎.NET 9), אבל כדי להריץ צריך את ה-Runtime של ‎.NET 9 – הוא מגיע עם ה-SDK.
 
 ## מבנה הפתרון
 
@@ -292,7 +296,7 @@ dotnet ef migrations add <Name> --project src/EmployerRequests.Infrastructure --
 | **מה נשמר** | הנתונים המסכמים של התצוגה ללא סינון (`GET /api/requests/summary` בלי פרמטרים) |
 | **למה דווקא זה** | זה המסך שכל משתמש פותח, החישוב עובר על כל הטבלה (שתי שאילתות קיבוץ), והתוצאה זהה לכל המשתמשים |
 | **תפוגה** | מוחלטת, 60 שניות (`SummaryCache:ExpirationSeconds`). זה החסם העליון ליישון במקרה של שינוי שלא עבר דרך ה-API הזה |
-| **ניקוי** | אחרי כל שינוי סטטוס שנשמר, בודד או מרוכז. הקריאה הבאה מחשבת מחדש, כך שמשתמש רואה את השינוי שלו מיד |
+| **ניקוי** | מיד אחרי כל שינוי סטטוס שנשמר – גם באמצע עדכון מרוכז, כך שתקלה בפנייה הבאה לא משאירה סיכום ישן. הקריאה הבאה מחשבת מחדש, והמשתמש רואה את השינוי שלו |
 | **מרוץ** | חישוב שהתחיל לפני שינוי והסתיים אחריו היה שומר נתונים ישנים. מונה גרסאות שעולה בכל ניקוי: התוצאה נשמרת רק אם לא היה ניקוי בזמן החישוב (נבדק בבדיקת יחידה) |
 | **מה לא נשמר** | סיכומים עם סינון: יש אינסוף צירופים, ולכן סיכוי קטן לפגיעה, והשאילתות שלהם מצומצמות יותר |
 
@@ -321,7 +325,7 @@ client/src/app/
     bulk-status-bar/     סרגל העדכון המרוכז
 ```
 
-* **הפרדת אחריות.** הרכיבים מציגים נתונים ומדווחים על פעולות (`input` / `output`) ולא פונים לשרת. ‏[`RequestsStore`](client/src/app/features/requests/requests.store.ts) מחזיק את מצב הרשימה (Signals) ומדבר עם ה-API. ‏[`RequestsApiService`](client/src/app/core/services/requests-api.service.ts) – מתודה לכל Endpoint, בלי מצב.
+* **הפרדת אחריות.** כל פנייה לשרת עוברת דרך [`RequestsApiService`](client/src/app/core/services/requests-api.service.ts) – מתודה לכל Endpoint, בלי מצב. מצב הרשימה (סינון, דפדוף, מיון, בחירה) נמצא ב-[`RequestsStore`](client/src/app/features/requests/requests.store.ts), עם Signals. רכיבי התצוגה – הסינון, הטבלה וסרגל העדכון המרוכז – רק מציגים ומדווחים על פעולות (`input` / `output`). רכיב הסיכום וחלון הפרטים טוענים בעצמם את הנתונים שלהם, דרך אותו שירות.
 * **הכול בצד השרת.** הלקוח לא מסנן, לא ממיין ולא מדפדף. כל שינוי בשאילתה מבקש עמוד אחד.
 * **Debounce.** הטופס מחכה 300ms אחרי ההקשה האחרונה, ואז שולח את הסינון – פעם אחת, ורק אם הוא השתנה (`distinctUntilChanged`).
 * **ביטול בקשות.** ה-Store מעביר כל שאילתה דרך `switchMap`: שאילתה חדשה מבטלת את הקודמת שעוד בדרך. הדפדפן מבטל את קריאת ה-HTTP, ה-`CancellationToken` בשרת מבטל את השאילתה ב-SQL Server, ותשובה ישנה לעולם לא דורסת תשובה חדשה.
@@ -337,7 +341,7 @@ client/src/app/
 | הפנייה לא קיימת | 404 | `NotFoundException` ← [`GlobalExceptionHandler`](src/EmployerRequests.Api/ErrorHandling/GlobalExceptionHandler.cs) |
 | מישהו אחר שינה קודם | 409 | `ConcurrencyConflictException` ← `GlobalExceptionHandler` |
 | מעבר סטטוס אסור | 422, עם הסטטוסים המותרים | `InvalidStatusTransitionException` ← `GlobalExceptionHandler` |
-| הלקוח ביטל את הבקשה | 499, נרשם כ-Information | `GlobalExceptionHandler` – זה לא שגיאה |
+| הלקוח ביטל את הבקשה | 499, לא נרשם כשגיאה | ASP.NET Core עונה כך בעצמו כשהביטול מגיע כ-`OperationCanceledException`; שאילתה שנעצרה באמצע יכולה לחזור כחריגה של SQL Server – `GlobalExceptionHandler` מזהה גם אותה (Information) |
 | כל דבר אחר | 500, בלי פרטים פנימיים; החריגה המלאה נרשמת ללוג | `GlobalExceptionHandler` |
 
 **Logging:** שינוי סטטוס ועדכון מרוכז נרשמים כ-Information (מזהה, סטטוס קודם וחדש, כמה עודכנו); ‏404/‏409/‏422 כ-Warning; ‏500 כ-Error עם החריגה. ה-SQL ש-EF Core שולח לא נרשם כברירת מחדל. כדי לראות אותו:
@@ -348,17 +352,19 @@ dotnet run --project src/EmployerRequests.Api -- --Logging:LogLevel:Microsoft.En
 
 ## בדיקות אוטומטיות
 
-‏58 בדיקות שרת (32 יחידה, ‏26 Integration) ו-14 בדיקות לקוח, וכולן רצות ב-CI בכל Push. בדיקות ה-Integration מריצות את ה-API האמיתי בזיכרון (`WebApplicationFactory<Program>`) מול SQL Server אמיתי – בסיס נתונים לכל מחלקת בדיקות, שנוצר מה-Migrations ונמחק בסוף.
+‏63 בדיקות שרת (36 יחידה, ‏27 Integration) ו-14 בדיקות לקוח, וכולן רצות ב-CI בכל Push ל-main ובכל Pull Request. בדיקות ה-Integration מריצות את ה-API האמיתי בזיכרון (`WebApplicationFactory<Program>`) מול SQL Server אמיתי – בסיס נתונים לכל מחלקת בדיקות, שנוצר מה-Migrations ונמחק בסוף.
 
 | בדיקה | סוג | מה היא מוכיחה |
 |---|---|---|
 | [`Of_many_simultaneous_changes_with_the_same_version_exactly_one_is_saved`](tests/EmployerRequests.IntegrationTests/ChangeStatusTests.cs) | Integration, ‏Concurrency | ‏10 עדכונים במקביל עם אותה גרסה: אחד נשמר, תשעה מקבלים 409, שורת היסטוריה אחת |
+| [`A_save_whose_version_changed_after_loading_is_rejected_by_the_database`](tests/EmployerRequests.IntegrationTests/ChangeStatusTests.cs) | Integration, ‏Concurrency | גם כשהבדיקה בקוד עברה – מישהו שמר בין הטעינה לשמירה – בסיס הנתונים דוחה את השמירה, ושום דבר ממנה לא נשמר |
 | [`A_change_based_on_an_old_version_gets_409_and_does_not_overwrite_the_newer_change`](tests/EmployerRequests.IntegrationTests/ChangeStatusTests.cs) | Integration | אין Lost Update |
 | [`Every_request_in_the_batch_gets_its_own_outcome_and_only_valid_ones_are_saved`](tests/EmployerRequests.IntegrationTests/BulkChangeStatusTests.cs) | Integration | Bulk עם תוצאות מעורבות: עודכנה, לא נמצאה, התנגשות, מעבר אסור |
 | [`Filters_are_combined_and_the_page_is_sorted_and_cut_by_the_database`](tests/EmployerRequests.IntegrationTests/SearchRequestsTests.cs) | Integration | סינון משולב, מיון ודפדוף |
 | [`Paging_over_equal_sort_values_returns_every_request_exactly_once`](tests/EmployerRequests.IntegrationTests/SearchRequestsTests.cs) | Integration | מיון יציב בין עמודים |
 | [`The_cached_unfiltered_summary_is_refreshed_right_after_a_status_change`](tests/EmployerRequests.IntegrationTests/HistoryAndSummaryTests.cs) | Integration | ניקוי ה-Cache |
 | [`A_summary_calculated_while_a_status_change_was_saved_is_not_kept`](tests/EmployerRequests.UnitTests/Caching/MemorySummaryCacheTests.cs) | יחידה | המרוץ בין חישוב לשינוי |
+| [`GlobalExceptionHandlerTests`](tests/EmployerRequests.UnitTests/ErrorHandling/GlobalExceptionHandlerTests.cs) | יחידה | חוזה השגיאות: 409 עם Problem Details, ‏500 בלי פרטים פנימיים, ולקוח שהתנתק אינו שגיאת שרת |
 | [`StatusWorkflowTests`](tests/EmployerRequests.UnitTests/Domain/StatusWorkflowTests.cs) | יחידה | כל המעברים המותרים מותרים, וכל השאר נדחים |
 | [`requests.store.spec.ts`](client/src/app/features/requests/requests.store.spec.ts) | Angular | חיפוש חדש מבטל את הקודם, ומוצגת רק התשובה החדשה |
 | [`request-filters.component.spec.ts`](client/src/app/features/requests/request-filters/request-filters.component.spec.ts) | Angular | Debounce: הקלדה מהירה שולחת סינון אחד |
@@ -423,9 +429,10 @@ dotnet run --project src/EmployerRequests.Api -- --Logging:LogLevel:Microsoft.En
 **איפה השתמשתי בו:** ניתוח האפיון ובניית תוכנית העבודה; ניסוח ההחלטות והחלופות; כתיבת קוד השרת, הלקוח, הבדיקות וה-CI; הרצת מדידות הביצועים וניתוחן; כתיבת התיעוד.
 
 **איך התוצאות נבדקו:**
-* כל Push בונה את הפתרון כש-Warnings נחשבות שגיאות, ומריץ את 58 בדיקות השרת מול SQL Server אמיתי ואת 14 בדיקות הלקוח.
+* כל Push ל-main וכל Pull Request בונים את הפתרון כש-Warnings נחשבות שגיאות, ומריצים את 63 בדיקות השרת מול SQL Server אמיתי ואת 14 בדיקות הלקוח.
 * בדיקת ה-Concurrency מריצה עדכונים מקבילים אמיתיים מול בסיס הנתונים, ולא מדמה אותם.
 * ה-SQL במסמך הביצועים נלקח מהלוג של האפליקציה, והמספרים נמדדו על 100,000 פניות ב-SQL Server – לא הוערכו.
+* **היסטוריית ה-Git:** ה-Commits מסודרים לפי המשימות שבתוכנית העבודה (המזהה בכל הודעה), ונוצרו בפרק זמן קצר, בעבודה עם ה-AI. הערכות הזמן בתוכנית הן לעבודה ידנית.
 
 **מה בדקתי ושיניתי בעצמי:**
 
