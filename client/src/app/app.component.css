@@ -1,5 +1,9 @@
 .toolbar {
   gap: 16px;
+  /* Room for the field's hint under it. */
+  height: auto;
+  min-height: 64px;
+  padding-block: 8px;
   background: var(--mat-sys-primary-container);
   color: var(--mat-sys-on-primary-container);
 }

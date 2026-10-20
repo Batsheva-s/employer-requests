@@ -4,8 +4,8 @@ import localeHe from '@angular/common/locales/he';
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners, provideZonelessChangeDetection } from '@angular/core';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
 import { MatPaginatorIntl } from '@angular/material/paginator';
-import { currentUserInterceptor } from './core/http/current-user.interceptor';
-import { HebrewPaginatorIntl } from './core/i18n/hebrew-paginator-intl';
+import { currentUserInterceptor } from './interceptors/current-user.interceptor';
+import { HebrewPaginatorIntl } from './utils/hebrew-paginator-intl';
 
 // Hebrew dates and numbers for the date and number pipes.
 registerLocaleData(localeHe);

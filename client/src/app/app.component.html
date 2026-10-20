@@ -2,8 +2,17 @@
   <span class="title">ניהול פניות מארגונים ומעסיקים</span>
   <span class="spacer"></span>
   <mat-form-field class="user-name">
-    <mat-label>שם המשתמש/ת (נרשם בהיסטוריה)</mat-label>
-    <input matInput #userName [value]="currentUser.name()" (change)="currentUser.setName(userName.value)" />
+    <mat-label>שם המשתמש/ת</mat-label>
+    <input
+      matInput
+      [value]="currentUser.name()"
+      (input)="currentUser.setName(userName.value)"
+      #userName
+      placeholder="משתמש לדוגמה"
+      maxlength="100"
+      autocomplete="off"
+    />
+    <mat-hint>נרשם בהיסטוריה בכל שינוי סטטוס</mat-hint>
   </mat-form-field>
 </mat-toolbar>
 

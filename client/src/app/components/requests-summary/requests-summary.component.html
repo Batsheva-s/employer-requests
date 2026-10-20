@@ -1,0 +1,64 @@
+<section class="summary" aria-label="סיכום">
+  @if (loading()) {
+    <mat-progress-bar class="loading" mode="indeterminate" />
+  }
+
+  @if (errorMessage(); as error) {
+    <p class="error" role="alert">{{ error }}</p>
+  }
+
+  @if (summary(); as summary) {
+    <div class="cards">
+      <div class="card total">
+        <span class="label">סה"כ פניות</span>
+        <span class="value">{{ summary.totalCount | number }}</span>
+      </div>
+
+      <div class="card">
+        <span class="label">לפי סטטוס</span>
+        <ul>
+          @for (item of summary.byStatus; track item.status) {
+            <li>
+              <span>{{ item.status | statusLabel }}</span>
+              <strong>{{ item.count | number }}</strong>
+            </li>
+          }
+        </ul>
+      </div>
+
+      <div class="card">
+        <span class="label">לפי עדיפות</span>
+        <ul>
+          @for (item of summary.byPriority; track item.priority) {
+            <li>
+              <span>{{ item.priority | priorityLabel }}</span>
+              <strong>{{ item.count | number }}</strong>
+            </li>
+          }
+        </ul>
+      </div>
+
+      <div class="card">
+        <span class="label">מטפלים עם הכי הרבה פניות פתוחות</span>
+        @if (summary.topAssignees.length === 0) {
+          <p class="muted">אין פניות פתוחות.</p>
+        } @else {
+          <ul>
+            @for (item of summary.topAssignees; track item.assignedTo) {
+              <li>
+                <span>{{ item.assignedTo }}</span>
+                <strong>{{ item.openRequests | number }}</strong>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+    <p
+      class="calculated muted"
+      title="בלי סינון, הסיכום נשמר בזיכרון השרת (Cache) עד דקה, ומתעדכן מיד אחרי כל שינוי סטטוס. עם סינון הוא מחושב בכל פעם."
+    >
+      נכון לשעה {{ summary.calculatedAt | date: 'HH:mm:ss' }}
+    </p>
+  }
+</section>

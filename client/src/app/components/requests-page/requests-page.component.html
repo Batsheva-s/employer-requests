@@ -1,0 +1,71 @@
+<app-requests-summary [filters]="state.filters()" [refreshKey]="summaryRefresh()" />
+
+<app-request-filters (filtersChange)="state.setFilters($event)" />
+
+@if (state.selection().size > 0) {
+  <app-bulk-status-bar
+    [count]="state.selection().size"
+    [busy]="bulkBusy()"
+    (apply)="changeStatusOfSelected($event)"
+    (clear)="state.clearSelection()"
+  />
+}
+
+@if (bulkResult()) {
+  <div class="bulk-result" role="status">
+    <p>
+      {{ bulkSummary() }}
+      <button mat-button type="button" (click)="bulkResult.set(null)">הסתרה</button>
+    </p>
+    @if (bulkFailures().length > 0) {
+      <ul>
+        @for (item of bulkFailures(); track item.id) {
+          <li>
+            <button mat-button type="button" (click)="openDetails(item.id)">פנייה {{ item.id }}</button>
+            – {{ outcomeLabels[item.outcome] }}
+          </li>
+        }
+      </ul>
+    }
+  </div>
+}
+
+@if (bulkError(); as error) {
+  <p class="error" role="alert">{{ error }}</p>
+}
+
+<section class="results" aria-label="רשימת הפניות">
+  @if (state.loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  @if (state.errorMessage(); as error) {
+    <div class="state" role="alert">
+      <p class="error">{{ error }}</p>
+      <button mat-stroked-button type="button" (click)="state.reload()">ניסיון חוזר</button>
+    </div>
+  } @else if (state.isEmpty()) {
+    <div class="state">
+      <p>לא נמצאו פניות שמתאימות לסינון.</p>
+    </div>
+  } @else if (state.result(); as result) {
+    <app-requests-table
+      [items]="result.items"
+      [sortBy]="state.query().sortBy"
+      [sortDirection]="state.query().sortDirection"
+      [selectedIds]="state.selectedIds()"
+      (sortChange)="state.setSort($event.sortBy, $event.sortDirection)"
+      (open)="openDetails($event)"
+      (toggle)="state.toggleSelection($event)"
+      (toggleAll)="state.toggleAllOnPage()"
+    />
+    <mat-paginator
+      [length]="result.totalCount"
+      [pageIndex]="state.query().page - 1"
+      [pageSize]="state.query().pageSize"
+      [pageSizeOptions]="pageSizeOptions"
+      (page)="onPage($event)"
+      showFirstLastButtons
+    />
+  }
+</section>
