@@ -49,10 +49,15 @@ builder.Services.AddSwaggerGen(options =>
 var connectionString = builder.Configuration.GetConnectionString("Requests")
     ?? throw new InvalidOperationException("Connection string 'Requests' is missing.");
 
-// Scoped – one DbContext per HTTP request (the default of AddDbContext). Compatibility level 130 (SQL Server 2016)
-// makes EF Core generate only SQL that LocalDB 2016 understands; newer servers run it just as well.
+// Scoped – one DbContext per HTTP request (the default of AddDbContext).
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(connectionString, sqlServer => sqlServer.UseCompatibilityLevel(130)));
+    options.UseSqlServer(connectionString, sqlServer => sqlServer
+        // Compatibility level 130 (SQL Server 2016): EF Core generates only SQL that LocalDB 2016 understands;
+        // newer servers run it just as well.
+        .UseCompatibilityLevel(130)
+        // A database error that passes by itself – a dropped connection, a deadlock – is tried again up to 3 times,
+        // a moment apart, before it becomes a 500. Conflicts and invalid requests are never "transient": no retry.
+        .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(2), errorNumbersToAdd: null)));
 
 // Scoped, like the DbContext they use: one instance per HTTP request.
 builder.Services.AddScoped<IRequestRepository, RequestRepository>();
