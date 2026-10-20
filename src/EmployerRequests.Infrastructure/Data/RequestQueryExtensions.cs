@@ -43,7 +43,10 @@ internal static class RequestQueryExtensions
         if (!string.IsNullOrWhiteSpace(filter.AssignedTo))
         {
             var prefix = filter.AssignedTo.Trim();
-            requests = requests.Where(request => request.AssignedTo != null && request.AssignedTo.StartsWith(prefix));
+            // LIKE 'text%' on IX_Requests_AssignedTo_Status. No "AssignedTo != null" check: in SQL, NULL LIKE 'x%' is
+            // never true, and the extra IS NOT NULL made SQL Server read the whole index instead of seeking the
+            // prefix (measured – docs/PERFORMANCE.md). The ! only tells the compiler; this code never runs in memory.
+            requests = requests.Where(request => request.AssignedTo!.StartsWith(prefix));
         }
 
         if (filter.CreatedFrom is { } from)
