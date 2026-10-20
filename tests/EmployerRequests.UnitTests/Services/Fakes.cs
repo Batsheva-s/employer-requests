@@ -1,6 +1,6 @@
-using EmployerRequests.Application.Abstractions;
-using EmployerRequests.Application.Contracts;
+using EmployerRequests.Application.DTOs;
 using EmployerRequests.Application.Exceptions;
+using EmployerRequests.Application.Interfaces;
 using EmployerRequests.Domain;
 
 namespace EmployerRequests.UnitTests.Services;
@@ -67,26 +67,10 @@ internal sealed class FakeRequestRepository : IRequestRepository
     }
 
     // The status logic does not read lists, history or counts.
-    public Task<PagedResult<RequestListItemDto>> SearchAsync(RequestSearchQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<ServiceRequest?> FindAsync(int id, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<PagedResultDto<RequestListItemDto>> SearchAsync(RequestSearchDto search, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<ServiceRequest?> GetByIdAsync(int id, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task<bool> ExistsAsync(int id, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task<IReadOnlyList<RequestStatusChangeDto>> GetHistoryAsync(int requestId, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<IReadOnlyList<StatusPriorityCount>> CountByStatusAndPriorityAsync(RequestFilter filter, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<IReadOnlyList<AssigneeWorkloadDto>> GetTopAssigneesAsync(RequestFilter filter, int count, CancellationToken cancellationToken) => throw new NotSupportedException();
-}
-
-/// <summary>A cache that never caches and counts invalidations.</summary>
-internal sealed class CountingSummaryCache : ISummaryCache
-{
-    public int Invalidations { get; private set; }
-
-    public Task<RequestsSummaryDto> GetOrCalculateAsync(Func<CancellationToken, Task<RequestsSummaryDto>> calculate, CancellationToken cancellationToken) =>
-        calculate(cancellationToken);
-
-    public void Invalidate() => Invalidations++;
-}
-
-internal sealed class FixedUser : ICurrentUser
-{
-    public string UserName => "test-user";
+    public Task<IReadOnlyList<StatusPriorityCount>> CountByStatusAndPriorityAsync(RequestFilterDto filter, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<IReadOnlyList<AssigneeWorkloadDto>> GetTopAssigneesAsync(RequestFilterDto filter, int count, CancellationToken cancellationToken) => throw new NotSupportedException();
 }

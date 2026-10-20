@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <!-- The HTTP layer and the composition root: controllers, error handling, Swagger, dependency injection. -->
+  <!-- The HTTP layer: the controller, error handling, Swagger, and Program.cs, where every class is registered. -->
 
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

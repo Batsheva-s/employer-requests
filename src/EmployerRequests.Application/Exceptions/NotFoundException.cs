@@ -1,10 +1,13 @@
 namespace EmployerRequests.Application.Exceptions;
 
-/// <summary>The requested resource does not exist. Returned to the client as 404.</summary>
+/// <summary>There is no request with this id. Returned to the client as 404.</summary>
 public class NotFoundException : Exception
 {
-    public NotFoundException(string resourceName, object key)
-        : base($"{resourceName} {key} was not found.")
+    public NotFoundException(int requestId)
+        : base($"Request {requestId} was not found.")
     {
+        RequestId = requestId;
     }
+
+    public int RequestId { get; }
 }

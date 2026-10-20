@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
-using EmployerRequests.Application.Contracts;
+using EmployerRequests.Application.DTOs;
 using EmployerRequests.Domain;
-using EmployerRequests.IntegrationTests.Infrastructure;
+using EmployerRequests.IntegrationTests.Helpers;
 using Microsoft.EntityFrameworkCore;
 
 namespace EmployerRequests.IntegrationTests;
@@ -43,7 +43,7 @@ public class BulkChangeStatusTests : IClassFixture<ApiFactory>
         }, ApiFactory.Json);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.ReadJsonAsync<BulkChangeStatusResult>();
+        var result = await response.ReadJsonAsync<BulkChangeStatusResultDto>();
         Assert.Equal(
             new[] { BulkItemOutcome.Updated, BulkItemOutcome.Conflict, BulkItemOutcome.InvalidTransition, BulkItemOutcome.NotFound },
             result.Items.Select(item => item.Outcome));

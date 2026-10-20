@@ -1,14 +1,14 @@
 using System.Text.Json.Serialization;
 using EmployerRequests.Api.ErrorHandling;
-using EmployerRequests.Api.Identity;
-using EmployerRequests.Application;
-using EmployerRequests.Application.Abstractions;
-using EmployerRequests.Infrastructure;
-using EmployerRequests.Infrastructure.Data.Seeding;
+using EmployerRequests.Application.Interfaces;
+using EmployerRequests.Application.Services;
+using EmployerRequests.Infrastructure.Data;
+using EmployerRequests.Infrastructure.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Services -------------------------------------------------------------
+// ---------- Controllers and JSON ----------
 
 builder.Services
     .AddControllers()
@@ -20,9 +20,12 @@ builder.Services
         options.AllowInputFormatterExceptionMessages = false;
     });
 
-// Every error answer is Problem Details (RFC 9457); exceptions are mapped in one place.
+// ---------- Errors: every error answer is Problem Details (RFC 9457), built in one place ----------
+
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+// ---------- Swagger ----------
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -34,23 +37,35 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Requests from organizations and employers: search, summary, details, history and status changes."
     });
 
-    // The XML comments of the controllers and of the contracts become descriptions in Swagger.
+    // The XML comments of the controller and of the DTOs become descriptions in Swagger.
     foreach (var assemblyName in new[] { "EmployerRequests.Api", "EmployerRequests.Application" })
     {
         options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, $"{assemblyName}.xml"));
     }
 });
 
-// Who changed what – read from the X-User-Name header (the exam has no login).
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUser, HeaderCurrentUser>();
+// ---------- Our classes (dependency injection) ----------
 
-builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+var connectionString = builder.Configuration.GetConnectionString("Requests")
+    ?? throw new InvalidOperationException("Connection string 'Requests' is missing.");
+
+// Scoped – one DbContext per HTTP request (the default of AddDbContext). Compatibility level 130 (SQL Server 2016)
+// makes EF Core generate only SQL that LocalDB 2016 understands; newer servers run it just as well.
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(connectionString, sqlServer => sqlServer.UseCompatibilityLevel(130)));
+
+// Scoped, like the DbContext they use: one instance per HTTP request.
+builder.Services.AddScoped<IRequestRepository, RequestRepository>();
+builder.Services.AddScoped<IRequestService, RequestService>();
+builder.Services.AddScoped<TestDataSeeder>();
+
+// Singleton: one cached summary for the whole application, shared by all requests.
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<SummaryCache>();
 
 var app = builder.Build();
 
-// --- Database -------------------------------------------------------------
+// ---------- Database ----------
 
 // "dotnet run -- seed [count]": deletes the database, creates it again with fresh test data, and exits.
 if (args.Length > 0 && args[0] == "seed")
@@ -68,7 +83,8 @@ if (args.Length > 0 && args[0] == "seed")
         return 1;
     }
 
-    await app.Services.RecreateTestDataAsync(count);
+    await using var seedScope = app.Services.CreateAsyncScope();
+    await seedScope.ServiceProvider.GetRequiredService<TestDataSeeder>().RecreateAsync(count);
     return 0;
 }
 
@@ -76,10 +92,11 @@ if (args.Length > 0 && args[0] == "seed")
 // first run. In production, migrations run as a separate deployment step.
 if (app.Environment.IsDevelopment())
 {
-    await app.Services.PrepareDatabaseAsync();
+    await using var startupScope = app.Services.CreateAsyncScope();
+    await startupScope.ServiceProvider.GetRequiredService<TestDataSeeder>().PrepareDatabaseAsync();
 }
 
-// --- HTTP pipeline --------------------------------------------------------
+// ---------- HTTP pipeline ----------
 
 app.UseExceptionHandler();
 // Answers without a body (for example, 404 for an unknown URL) also get a Problem Details body.

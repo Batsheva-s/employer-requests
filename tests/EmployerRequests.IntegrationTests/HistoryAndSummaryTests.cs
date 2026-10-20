@@ -1,7 +1,7 @@
 using System.Net;
-using EmployerRequests.Application.Contracts;
+using EmployerRequests.Application.DTOs;
 using EmployerRequests.Domain;
-using EmployerRequests.IntegrationTests.Infrastructure;
+using EmployerRequests.IntegrationTests.Helpers;
 
 namespace EmployerRequests.IntegrationTests;
 
@@ -63,7 +63,7 @@ public class HistoryAndSummaryTests : IClassFixture<ApiFactory>
             TestRequests.New(status: RequestStatus.New, priority: RequestPriority.Low, assignedTo: "דוד לוי"));
 
         var summary = await _client.GetJsonAsync<RequestsSummaryDto>("/api/requests/summary?priority=High");
-        var list = await _client.GetJsonAsync<PagedResult<RequestListItemDto>>("/api/requests?priority=High");
+        var list = await _client.GetJsonAsync<PagedResultDto<RequestListItemDto>>("/api/requests?priority=High");
 
         Assert.Equal(list.TotalCount, summary.TotalCount);
         Assert.Equal(3, summary.TotalCount);

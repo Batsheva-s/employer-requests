@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
-using EmployerRequests.Application.Contracts;
+using EmployerRequests.Application.DTOs;
 using EmployerRequests.Domain;
-using EmployerRequests.IntegrationTests.Infrastructure;
+using EmployerRequests.IntegrationTests.Helpers;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EmployerRequests.IntegrationTests;
@@ -31,7 +31,7 @@ public class SearchRequestsTests : IClassFixture<ApiFactory>
             TestRequests.New("wrong organization", "ארז מערכות בע\"מ", RequestStatus.New, RequestPriority.High, createdAt: day),
             TestRequests.New("too early", "אלון תעשיות בע\"מ", RequestStatus.New, RequestPriority.High, createdAt: day.AddDays(-1)));
 
-        var page = await _client.GetJsonAsync<PagedResult<RequestListItemDto>>(
+        var page = await _client.GetJsonAsync<PagedResultDto<RequestListItemDto>>(
             "/api/requests?status=New&status=Waiting&priority=High&organizationName=אלון" +
             "&createdFrom=2026-03-01T00:00:00Z&createdTo=2026-03-02T00:00:00Z" +
             "&sortBy=createdAt&sortDirection=desc&page=1&pageSize=2");
@@ -49,7 +49,7 @@ public class SearchRequestsTests : IClassFixture<ApiFactory>
             TestRequests.New("בירור תשלום", "אישורים ושות' בע\"מ"),
             TestRequests.New("בירור תשלום", "גפן שירותים בע\"מ"));
 
-        var page = await _client.GetJsonAsync<PagedResult<RequestListItemDto>>("/api/requests?search=אישור");
+        var page = await _client.GetJsonAsync<PagedResultDto<RequestListItemDto>>("/api/requests?search=אישור");
 
         Assert.Equal(2, page.TotalCount);
     }
@@ -62,7 +62,7 @@ public class SearchRequestsTests : IClassFixture<ApiFactory>
             TestRequests.New("הנחה רגילה"));
 
         // "%" alone would match everything if it reached LIKE as a wildcard.
-        var page = await _client.GetJsonAsync<PagedResult<RequestListItemDto>>("/api/requests?search=%25");
+        var page = await _client.GetJsonAsync<PagedResultDto<RequestListItemDto>>("/api/requests?search=%25");
 
         var item = Assert.Single(page.Items);
         Assert.Equal("הנחה של 50% לעובדים", item.Title);
@@ -77,7 +77,7 @@ public class SearchRequestsTests : IClassFixture<ApiFactory>
         var seen = new List<int>();
         for (var page = 1; page <= 3; page++)
         {
-            var result = await _client.GetJsonAsync<PagedResult<RequestListItemDto>>(
+            var result = await _client.GetJsonAsync<PagedResultDto<RequestListItemDto>>(
                 $"/api/requests?sortBy=createdAt&sortDirection=desc&pageSize=10&page={page}");
             seen.AddRange(result.Items.Select(item => item.Id));
         }
