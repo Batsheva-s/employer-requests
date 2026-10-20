@@ -1,0 +1,24 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.trx
+
+# IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Angular client
+client/node_modules/
+client/dist/
+client/.angular/
+client/out-tsc/
+client/coverage/
+
+# OS
+.DS_Store
+Thumbs.db

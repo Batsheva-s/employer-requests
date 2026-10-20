@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Use cases: services, contracts (DTOs) and the interfaces the infrastructure implements. -->
+
+  <PropertyGroup>
+    <!-- The XML comments on the contracts become descriptions in Swagger. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EmployerRequests.Domain\EmployerRequests.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,9 @@
+# Normalize line endings in the repository; check out with the platform's native endings.
+* text=auto
+
+*.sln text eol=crlf
+*.sh text eol=lf
+
+*.png binary
+*.ico binary
+*.sqlplan text

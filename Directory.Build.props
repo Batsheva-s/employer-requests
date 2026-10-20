@@ -1,0 +1,15 @@
+<Project>
+  <!-- Settings shared by every .NET project in the repository. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- A warning is a bug that has not happened yet: the build fails on any compiler or analyzer warning. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <!-- XML comments feed Swagger; a public member without one is not an error. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>

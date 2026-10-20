@@ -1,0 +1,20 @@
+# SQL Server 2022 in a container – for running the API and the tests without LocalDB
+# (Mac, Linux, or Windows without LocalDB). Local development only: the password is not a secret.
+#
+#   docker compose up -d --wait     start, and wait until SQL Server accepts connections
+#   docker compose down             stop and remove the container (and its data)
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: employer-requests-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Local_Dev_Pass_123!"
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s

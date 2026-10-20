@@ -1,0 +1,22 @@
+<Project>
+  <!-- Central package management: every package version is set once, here. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup Label="Server">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.21" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.21" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.21" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.21" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.21" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.3.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="Tests">
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.21" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+</Project>

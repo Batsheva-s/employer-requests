@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- The HTTP layer and the composition root: controllers, error handling, Swagger, dependency injection. -->
+
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+    <!-- Needed by "dotnet ef migrations add" only; not shipped with the application. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EmployerRequests.Application\EmployerRequests.Application.csproj" />
+    <ProjectReference Include="..\EmployerRequests.Infrastructure\EmployerRequests.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

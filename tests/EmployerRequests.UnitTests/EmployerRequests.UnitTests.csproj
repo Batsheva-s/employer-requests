@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Fast tests without a database: business rules, validation, the cache and the bulk logic. -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\EmployerRequests.Domain\EmployerRequests.Domain.csproj" />
+    <ProjectReference Include="..\..\src\EmployerRequests.Application\EmployerRequests.Application.csproj" />
+    <ProjectReference Include="..\..\src\EmployerRequests.Infrastructure\EmployerRequests.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
