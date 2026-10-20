@@ -44,7 +44,7 @@
             }
           </mat-select>
         </mat-form-field>
-        <button mat-flat-button type="button" (click)="save()" [disabled]="saving() || !newStatus()">
+        <button mat-flat-button type="button" (click)="save()" [disabled]="saving() || loading() || !newStatus()">
           {{ saving() ? 'שומר…' : 'עדכון סטטוס' }}
         </button>
         <span class="muted">יירשם בהיסטוריה על שם: {{ currentUser.nameForHistory() }}</span>

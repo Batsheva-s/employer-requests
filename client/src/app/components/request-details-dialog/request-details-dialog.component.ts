@@ -108,6 +108,9 @@ export class RequestDetailsDialogComponent {
         next: (updated) => {
           this.saving.set(false);
           this.justSaved.set(true);
+          // The answer carries the new version: the screen uses it at once, so the next change is based on it.
+          this.request.set(updated);
+          this.newStatus.set(updated.allowedNextStatuses[0] ?? null);
           this.snackBar.open(
             `הסטטוס עודכן ל"${STATUS_LABELS[updated.status]}" ונרשם בהיסטוריה על שם ${this.currentUser.nameForHistory()}`,
             undefined,

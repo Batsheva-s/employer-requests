@@ -92,6 +92,8 @@ export class RequestsPageComponent {
       error: (error: unknown) => {
         this.bulkBusy.set(false);
         this.bulkError.set(describeHttpError(error));
+        // Requests handled before the failure may already be saved: load the current state.
+        this.refresh();
       },
     });
   }

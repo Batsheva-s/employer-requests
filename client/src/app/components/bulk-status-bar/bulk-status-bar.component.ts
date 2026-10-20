@@ -16,7 +16,8 @@ import { StatusLabelPipe } from '../../pipes/labels.pipe';
 export class BulkStatusBarComponent {
   /** The same limit the server enforces. */
   protected readonly maxItems = 100;
-  protected readonly statuses = REQUEST_STATUSES;
+  /** No request may move back to "New" (StatusWorkflow), so it is not offered. */
+  protected readonly statuses = REQUEST_STATUSES.filter((status) => status !== 'New');
 
   readonly count = input.required<number>();
   readonly busy = input(false);

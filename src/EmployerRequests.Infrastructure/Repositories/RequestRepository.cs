@@ -126,8 +126,8 @@ public class RequestRepository : IRequestRepository
         if (filter.Status is { Length: > 0 } statuses)
         {
             // EF.Constant writes the few selected values into the SQL (Status IN (1, 3)), so SQL Server knows exactly
-            // what it is looking for and seeks the index. Without it, EF Core 9 sends the values as one JSON
-            // parameter (OPENJSON), whose size SQL Server cannot estimate – and then it scans.
+            // what it is looking for when it builds the plan. Without it, EF Core 9 sends the values as one JSON
+            // parameter (OPENJSON), whose size SQL Server can only guess – which can lead to a worse plan.
             requests = requests.Where(request => EF.Constant(statuses).Contains(request.Status));
         }
 

@@ -13,7 +13,6 @@ namespace EmployerRequests.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/requests")]
-[Produces("application/json")]
 public class RequestsController : ControllerBase
 {
     /// <summary>

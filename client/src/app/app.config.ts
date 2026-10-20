@@ -15,7 +15,8 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     // No zone.js: the screen updates when signals change.
     provideZonelessChangeDetection(),
-    // withFetch: HttpClient on the browser's fetch API. Unsubscribing aborts the HTTP call (switchMap relies on it).
+    // withFetch: HttpClient on the browser's fetch API. With any backend, unsubscribing aborts the HTTP call –
+    // which is how switchMap cancels a search that is still on its way.
     provideHttpClient(withFetch(), withInterceptors([currentUserInterceptor])),
     { provide: LOCALE_ID, useValue: 'he' },
     { provide: MatPaginatorIntl, useClass: HebrewPaginatorIntl },

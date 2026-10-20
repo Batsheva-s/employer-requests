@@ -43,6 +43,3 @@ public interface IRequestRepository
     /// </summary>
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
-
-/// <summary>How many matching requests have a given status and priority – one row of the summary's GROUP BY.</summary>
-public record StatusPriorityCount(RequestStatus Status, RequestPriority Priority, int Count);
