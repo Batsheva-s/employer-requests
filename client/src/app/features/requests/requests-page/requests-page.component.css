@@ -1,0 +1,31 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.results {
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--mat-sys-surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+
+.state {
+  padding: 32px;
+  text-align: center;
+}
+
+.bulk-result {
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container);
+}
+
+.bulk-result p {
+  margin: 0;
+}
+
+.bulk-result ul {
+  margin: 4px 0 0;
+}

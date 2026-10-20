@@ -1,0 +1,52 @@
+.summary {
+  position: relative;
+}
+
+.loading {
+  position: absolute;
+  top: 0;
+  inset-inline: 0;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container);
+}
+
+.card .label {
+  font-size: 13px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.card.total .value {
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.card ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.calculated {
+  margin: 4px 0 0;
+  font-size: 12px;
+}

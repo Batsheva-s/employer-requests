@@ -1,0 +1,12 @@
+<mat-toolbar class="toolbar">
+  <span class="title">ניהול פניות מארגונים ומעסיקים</span>
+  <span class="spacer"></span>
+  <mat-form-field class="user-name">
+    <mat-label>שם המשתמש/ת (נרשם בהיסטוריה)</mat-label>
+    <input matInput #userName [value]="currentUser.name()" (change)="currentUser.setName(userName.value)" />
+  </mat-form-field>
+</mat-toolbar>
+
+<main class="content">
+  <app-requests-page />
+</main>

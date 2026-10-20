@@ -1,0 +1,14 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.filters mat-form-field {
+  width: 180px;
+}
+
+.filters .search {
+  flex: 1 1 320px;
+}

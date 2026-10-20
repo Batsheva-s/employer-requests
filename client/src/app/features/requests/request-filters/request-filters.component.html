@@ -1,0 +1,49 @@
+<div class="filters" [formGroup]="form">
+  <mat-form-field class="search">
+    <mat-label>חיפוש בכותרת או בשם הארגון</mat-label>
+    <input matInput formControlName="search" autocomplete="off" />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>סטטוס</mat-label>
+    <mat-select formControlName="status" multiple>
+      @for (status of statuses; track status) {
+        <mat-option [value]="status">{{ status | statusLabel }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>עדיפות</mat-label>
+    <mat-select formControlName="priority" multiple>
+      @for (priority of priorities; track priority) {
+        <mat-option [value]="priority">{{ priority | priorityLabel }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>שם הארגון מתחיל ב…</mat-label>
+    <input matInput formControlName="organizationName" autocomplete="off" />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>שם המטפל/ת מתחיל ב…</mat-label>
+    <input matInput formControlName="assignedTo" autocomplete="off" />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>נוצרה מתאריך</mat-label>
+    <input matInput type="date" formControlName="createdFrom" />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>עד תאריך (כולל)</mat-label>
+    <input matInput type="date" formControlName="createdTo" />
+    @if (dateRangeInvalid) {
+      <mat-hint class="error">תאריך הסיום מוקדם מתאריך ההתחלה</mat-hint>
+    }
+  </mat-form-field>
+
+  <button mat-stroked-button type="button" (click)="clear()">ניקוי הסינון</button>
+</div>

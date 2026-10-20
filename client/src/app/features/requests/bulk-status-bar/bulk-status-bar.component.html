@@ -1,0 +1,21 @@
+<div class="bulk-bar" role="region" aria-label="עדכון מרוכז">
+  <strong>{{ selectedText() }}</strong>
+
+  <mat-form-field>
+    <mat-label>סטטוס חדש לכולן</mat-label>
+    <mat-select [value]="newStatus()" (selectionChange)="newStatus.set($event.value)">
+      @for (status of statuses; track status) {
+        <mat-option [value]="status">{{ status | statusLabel }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <button mat-flat-button type="button" (click)="apply.emit(newStatus())" [disabled]="busy() || count() > maxItems">
+    {{ busy() ? 'מעדכן…' : 'עדכון הנבחרות' }}
+  </button>
+  <button mat-button type="button" (click)="clear.emit()">ניקוי הבחירה</button>
+
+  @if (count() > maxItems) {
+    <span class="error">אפשר לעדכן עד {{ maxItems }} פניות בבת אחת.</span>
+  }
+</div>

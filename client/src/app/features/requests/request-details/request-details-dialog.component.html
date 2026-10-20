@@ -1,0 +1,89 @@
+<h2 mat-dialog-title>פנייה מס' {{ data.requestId }}</h2>
+
+<mat-dialog-content>
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  @if (loadError(); as error) {
+    <p class="error" role="alert">{{ error }}</p>
+    <button mat-stroked-button type="button" (click)="load()">ניסיון חוזר</button>
+  }
+
+  @if (conflictMessage(); as message) {
+    <div class="conflict" role="alert">{{ message }}</div>
+  }
+
+  @if (request(); as request) {
+    <dl class="details">
+      <dt>כותרת</dt>
+      <dd>{{ request.title }}</dd>
+      <dt>ארגון</dt>
+      <dd>{{ request.organizationName }}</dd>
+      <dt>סטטוס</dt>
+      <dd>
+        <strong>{{ request.status | statusLabel }}</strong>
+      </dd>
+      <dt>עדיפות</dt>
+      <dd>{{ request.priority | priorityLabel }}</dd>
+      <dt>מטפל/ת</dt>
+      <dd>{{ request.assignedTo ?? 'לא שויך' }}</dd>
+      <dt>נוצרה</dt>
+      <dd>{{ request.createdAt | date: 'dd/MM/yyyy HH:mm' }}</dd>
+      <dt>עודכנה לאחרונה</dt>
+      <dd>{{ request.updatedAt | date: 'dd/MM/yyyy HH:mm:ss' }}</dd>
+    </dl>
+
+    <section class="change-status" aria-label="עדכון סטטוס">
+      @if (request.allowedNextStatuses.length > 0) {
+        <mat-form-field>
+          <mat-label>סטטוס חדש</mat-label>
+          <mat-select [value]="newStatus()" (selectionChange)="newStatus.set($event.value)">
+            @for (status of request.allowedNextStatuses; track status) {
+              <mat-option [value]="status">{{ status | statusLabel }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button mat-flat-button type="button" (click)="save()" [disabled]="saving() || !newStatus()">
+          {{ saving() ? 'שומר…' : 'עדכון סטטוס' }}
+        </button>
+      } @else {
+        <p class="muted">אין מעבר אפשרי מהסטטוס הנוכחי.</p>
+      }
+    </section>
+
+    @if (saveError(); as error) {
+      <p class="error" role="alert">{{ error }}</p>
+    }
+
+    <section class="history" aria-label="היסטוריית שינויים">
+      <h3>היסטוריית שינויים</h3>
+      @if (history().length === 0) {
+        <p class="muted">הסטטוס של הפנייה עוד לא שונה.</p>
+      } @else {
+        <table>
+          <thead>
+            <tr>
+              <th>מתי</th>
+              <th>שינוי</th>
+              <th>על ידי</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (change of history(); track change.id) {
+              <tr>
+                <td>{{ change.changedAt | date: 'dd/MM/yyyy HH:mm:ss' }}</td>
+                <td>{{ change.previousStatus | statusLabel }} ← {{ change.newStatus | statusLabel }}</td>
+                <td>{{ change.changedBy }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" mat-dialog-close>סגירה</button>
+</mat-dialog-actions>
