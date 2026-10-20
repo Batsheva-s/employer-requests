@@ -33,6 +33,9 @@ internal sealed class FakeRequestRepository : IRequestRepository
     /// <summary>Saving this request fails as if another user had saved it first.</summary>
     public int? ConflictOnSaveForId { get; init; }
 
+    /// <summary>Saving this request fails with an unexpected error, as when the database does not answer in time.</summary>
+    public int? FailOnSaveForId { get; init; }
+
     public int SuccessfulSaves { get; private set; }
 
     public ServiceRequest Add(ServiceRequest request)
@@ -52,6 +55,11 @@ internal sealed class FakeRequestRepository : IRequestRepository
         if (_lastLoaded is not null && _lastLoaded.Id == ConflictOnSaveForId)
         {
             throw new ConcurrencyConflictException(_lastLoaded.Id);
+        }
+
+        if (_lastLoaded is not null && _lastLoaded.Id == FailOnSaveForId)
+        {
+            throw new TimeoutException("The database did not answer in time.");
         }
 
         SuccessfulSaves++;

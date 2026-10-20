@@ -2,11 +2,14 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using EmployerRequests.Application.Abstractions;
 using EmployerRequests.Application.Contracts;
+using EmployerRequests.Application.Exceptions;
 using EmployerRequests.Domain;
 using EmployerRequests.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EmployerRequests.IntegrationTests;
 
@@ -75,9 +78,38 @@ public class ChangeStatusTests : IClassFixture<ApiFactory>
             responses.Where(response => response.StatusCode != HttpStatusCode.OK),
             response => Assert.Equal(HttpStatusCode.Conflict, response.StatusCode));
 
-        // Exactly one change reached the database – no lost update, no double history.
+        // Exactly one change reached the database – no lost update, no double history. Depending on timing, a
+        // loser is stopped by the version check in the service or by the database itself; the next test checks
+        // the database alone.
         var history = await _api.QueryAsync(db => db.RequestStatusChanges.Where(change => change.RequestId == request.Id).ToListAsync());
         Assert.Single(history);
+    }
+
+    [Fact]
+    public async Task A_save_whose_version_changed_after_loading_is_rejected_by_the_database()
+    {
+        var request = (await _api.ResetAsync(TestRequests.New()))[0];
+
+        // A slow change, made exactly as the service makes it: the request is loaded and the version check passes.
+        await using var scope = _api.Services.CreateAsyncScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IRequestRepository>();
+        var loaded = await repository.GetForUpdateAsync(request.Id, CancellationToken.None);
+        Assert.NotNull(loaded);
+        Assert.Equal(request.RowVersion, loaded.RowVersion);
+        loaded.ChangeStatus(RequestStatus.Waiting, "slow", DateTimeOffset.UtcNow);
+
+        // Before it is saved, another user changes the same request through the API.
+        var fast = await _api.CreateClientAs("fast").ChangeStatusAsync(request.Id, RequestStatus.InProgress, request.RowVersion);
+        Assert.Equal(HttpStatusCode.OK, fast.StatusCode);
+
+        // Only the database can see this: UPDATE ... WHERE RowVersion = <the version loaded above> matches no row.
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(() => repository.SaveChangesAsync(CancellationToken.None));
+
+        // Nothing of the slow change was saved – neither the status nor its history row.
+        var stored = await _api.QueryAsync(db => db.Requests.AsNoTracking().SingleAsync(r => r.Id == request.Id));
+        Assert.Equal(RequestStatus.InProgress, stored.Status);
+        var history = await _api.QueryAsync(db => db.RequestStatusChanges.Where(change => change.RequestId == request.Id).ToListAsync());
+        Assert.Equal("fast", Assert.Single(history).ChangedBy);
     }
 
     [Fact]

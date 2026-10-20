@@ -83,6 +83,28 @@ public class RequestStatusServiceTests
         Assert.Equal(2, repository.SuccessfulSaves);
     }
 
+    [Fact]
+    public async Task An_unexpected_failure_in_the_middle_of_a_bulk_change_leaves_no_outdated_summary()
+    {
+        // Request 1 is saved; then the database fails on request 2. The error reaches the client as a 500,
+        // but the change to request 1 is already saved – so the cached summary must already be cleared.
+        var repository = new FakeRequestRepository { FailOnSaveForId = 2 };
+        repository.Add(TestRequests.Create(1, RequestStatus.New, Version1));
+        repository.Add(TestRequests.Create(2, RequestStatus.New, Version1));
+        repository.Add(TestRequests.Create(3, RequestStatus.New, Version1));
+        var cache = new CountingSummaryCache();
+        var service = CreateService(repository, cache);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => service.ChangeStatusBulkAsync(new BulkChangeStatusCommand
+        {
+            Status = RequestStatus.Waiting,
+            Items = [Item(1, Version1), Item(2, Version1), Item(3, Version1)]
+        }, CancellationToken.None));
+
+        Assert.Equal(1, repository.SuccessfulSaves);
+        Assert.Equal(1, cache.Invalidations);
+    }
+
     private static RequestStatusService CreateService(FakeRequestRepository repository, CountingSummaryCache cache) =>
         new(repository, cache, new FixedUser(), TimeProvider.System, NullLogger<RequestStatusService>.Instance);
 
