@@ -7,7 +7,10 @@
 
     <!-- A warning is a bug that has not happened yet: the build fails on any compiler or analyzer warning. -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- The rules of .NET 9, also when a newer SDK builds the solution: new rules must not fail a build that passed. -->
+    <AnalysisLevel>9.0</AnalysisLevel>
+    <!-- A vulnerability published later for a package is reported as a warning, but does not stop the build. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
 
     <!-- XML comments feed Swagger; a public member without one is not an error. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>

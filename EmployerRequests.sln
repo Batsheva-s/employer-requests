@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EmployerRequests.Api", "src\EmployerRequests.Api\EmployerRequests.Api.csproj", "{4CE122B0-8A35-4EDC-9CD8-F1E2FDDA71B8}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{CDB30DAC-A9F8-4A1C-93C5-EF3565014359}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{10534939-A931-4C4F-85C6-09AEC15377BF}"
@@ -12,8 +14,6 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EmployerRequests.Application", "src\EmployerRequests.Application\EmployerRequests.Application.csproj", "{282C4E47-6481-449F-A26C-34BA0B2A7B20}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EmployerRequests.Infrastructure", "src\EmployerRequests.Infrastructure\EmployerRequests.Infrastructure.csproj", "{F54F4296-A701-4F78-8243-4E94AE440DB3}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EmployerRequests.Api", "src\EmployerRequests.Api\EmployerRequests.Api.csproj", "{4CE122B0-8A35-4EDC-9CD8-F1E2FDDA71B8}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EmployerRequests.UnitTests", "tests\EmployerRequests.UnitTests\EmployerRequests.UnitTests.csproj", "{66399182-0BC4-4CF1-A55F-4DBC79D44538}"
 EndProject
