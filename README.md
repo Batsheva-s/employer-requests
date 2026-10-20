@@ -94,10 +94,10 @@ npm test -- --watch=false
 ## מה לנסות
 
 1. **סינון, חיפוש, מיון ודפדוף – בצד השרת.** כל שינוי מבקש מהשרת עמוד אחד. בכלי המפתחים של הדפדפן (F12 ← Network) רואים שבזמן הקלדה בשדה החיפוש יוצאות בקשות רק 300ms אחרי ההקשה האחרונה – אחת לרשימה ואחת לסיכום – ושבקשה שעוד לא חזרה כשהסינון השתנה מסומנת `(canceled)`: הדפדפן ביטל אותה, והשרת ביטל את השאילתה שלה.
-2. **עדכון סטטוס והיסטוריה.** לחיצה על פנייה פותחת את פרטיה. הרשימה מציעה רק את הסטטוסים שמותר לעבור אליהם, וההיסטוריה מראה מי שינה ומתי. השם נלקח מהשדה בסרגל העליון.
+2. **עדכון סטטוס והיסטוריה.** כותבים שם בשדה "שם המשתמש/ת" בראש המסך – במבחן אין התחברות, וזה השם שנרשם בהיסטוריה. לחיצה על פנייה פותחת את פרטיה: הרשימה מציעה רק את הסטטוסים שמותר לעבור אליהם, וליד הכפתור כתוב על שם מי יירשם השינוי. אחרי העדכון, השורה החדשה מסומנת ב"היסטוריית שינויי הסטטוס" שבתחתית החלון: מתי, מאיזה סטטוס לאיזה, ומי. לפניות של נתוני הבדיקה ההיסטוריה מתחילה ריקה – היא מתעדת שינויים שנעשו דרך המערכת.
 3. **שני משתמשים על אותה פנייה (409).** פותחים את אותה פנייה בשתי לשוניות. מעדכנים סטטוס בראשונה, ואחר כך בשנייה, שעדיין מציגה את הגרסה הקודמת. השנייה מקבלת הודעה שהפנייה עודכנה בינתיים והשינוי שלה לא נשמר, והחלון מציג את המצב העדכני – כולל השינוי של הלשונית הראשונה בהיסטוריה.
 4. **עדכון מרוכז.** מסמנים כמה פניות, כולל אחת בסטטוס "הושלמה", ובוחרים "ממתינה". התוצאה מפרטת כמה פניות עודכנו, ולכל פנייה שלא עודכנה – למה (מ"הושלמה" אפשר לעבור רק ל"בטיפול").
-5. **נתונים מסכמים.** הכרטיסים בראש המסך מחושבים לפי אותו סינון כמו הרשימה, ומתעדכנים אחרי כל שינוי סטטוס: בסגירת חלון הפרטים, ומיד אחרי עדכון מרוכז.
+5. **נתונים מסכמים.** הכרטיסים בראש המסך מחושבים לפי אותו סינון כמו הרשימה, ומתעדכנים אחרי כל שינוי סטטוס: בסגירת חלון הפרטים, ומיד אחרי עדכון מרוכז. "נכון לשעה" מתחתם הוא הרגע שבו המספרים חושבו: בלי סינון הם מגיעים מה-Cache, ולכן השעה נשארת עד דקה – או עד שינוי הסטטוס הבא.
 6. **ב-Swagger:** ‏`pageSize=500` מחזיר 400 עם שם השדה; מעבר סטטוס אסור מחזיר 422 עם הסטטוסים המותרים; גרסה ישנה מחזירה 409.
 
 ## טכנולוגיות וגרסאות
@@ -119,17 +119,36 @@ npm test -- --watch=false
 
 ## מבנה הפתרון
 
+ארבעה פרויקטים, והחלוקה המוכרת בתוכם: Controller ← Service ← Repository ← DbContext.
+
 ```text
 src/
-  EmployerRequests.Domain/            הישויות וכללי העסק: ServiceRequest, ‏StatusWorkflow, ‏RequestStatusChange
-  EmployerRequests.Application/       השירותים (Use Cases), ה-DTOs והוולידציה, והממשקים שהתשתית מממשת
-  EmployerRequests.Infrastructure/    EF Core: ‏DbContext, אינדקסים, Migrations, ‏Repository, ‏Cache, נתוני בדיקה
-  EmployerRequests.Api/               HTTP: ‏Controller, טיפול גלובלי בשגיאות, Swagger, הרכבת ה-DI
+  EmployerRequests.Api/                      שכבת ה-HTTP
+    Controllers/RequestsController.cs          כל ה-Endpoints: מקבל בקשה, קורא לשירות, מחזיר תשובה
+    ErrorHandling/GlobalExceptionHandler.cs    חריגה ← תשובת שגיאה אחידה (Problem Details)
+    Program.cs                                 הגדרות, רישום כל המחלקות ב-DI, הכנת בסיס הנתונים
+  EmployerRequests.Application/              הלוגיקה העסקית
+    DTOs/                                      מה שנכנס ל-API ויוצא ממנו, עם כללי הוולידציה
+    Interfaces/                                IRequestService, ‏IRequestRepository
+    Services/RequestService.cs                 כל הפעולות על פניות: חיפוש, פרטים, היסטוריה, סיכום, עדכון סטטוס, עדכון מרוכז
+    Services/SummaryCache.cs                   ה-Cache של הסיכום
+    Mapping/RequestMapper.cs                   ישות ← DTO, במקום אחד
+    Exceptions/                                NotFoundException, ‏ConcurrencyConflictException
+  EmployerRequests.Domain/                   הישויות וכללי העסק – בלי תלות בשום ספרייה
+    ServiceRequest.cs                          הפנייה; הסטטוס משתנה רק דרך ChangeStatus
+    RequestStatusChange.cs                     שורה בהיסטוריית השינויים
+    StatusWorkflow.cs                          מעברי הסטטוס המותרים
+    RequestStatus.cs, RequestPriority.cs, InvalidStatusTransitionException.cs
+  EmployerRequests.Infrastructure/           בסיס הנתונים
+    Data/AppDbContext.cs                       הטבלאות, העמודות והאינדקסים (Code First)
+    Data/Migrations/                           נוצרו מ-AppDbContext
+    Data/TestDataSeeder.cs                     100,000 פניות לבדיקה, ויצירה מחדש שלהן
+    Repositories/RequestRepository.cs          כל השאילתות: סינון, מיון, דפדוף, קיבוץ, שמירה
 tests/
-  EmployerRequests.UnitTests/         כללי העסק, ולידציה, Cache, לוגיקת ה-Bulk – בלי בסיס נתונים
-  EmployerRequests.IntegrationTests/  ה-API כולו מול SQL Server אמיתי
-client/                               Angular
-docs/                                 תוכנית העבודה, ביצועים
+  EmployerRequests.UnitTests/                בלי בסיס נתונים: כללי הסטטוס, ולידציה, ה-Cache, לוגיקת העדכון
+  EmployerRequests.IntegrationTests/         ה-API כולו מול SQL Server אמיתי
+client/                                      Angular
+docs/                                        תוכנית העבודה, ביצועים
 ```
 
 ```mermaid
@@ -140,16 +159,16 @@ flowchart LR
   Application --> Domain
 ```
 
-**כיוון התלויות:** ה-Domain לא תלוי בשום דבר. ה-Application מגדיר ממשקים (`IRequestRepository`, ‏`ISummaryCache`, ‏`ICurrentUser`) ולא מכיר את EF Core או את HTTP. ‏Infrastructure ו-Api מממשים את הממשקים, ו-Api מרכיב הכול ב-[`Program.cs`](src/EmployerRequests.Api/Program.cs). כך כללי העסק נבדקים בלי בסיס נתונים, והקומפיילר לא מאפשר לשכבה פנימית להשתמש בשכבה חיצונית.
+**מסלול של בקשה:** [`RequestsController`](src/EmployerRequests.Api/Controllers/RequestsController.cs) (רק HTTP) ← [`RequestService`](src/EmployerRequests.Application/Services/RequestService.cs) (ההחלטות) ← [`ServiceRequest`](src/EmployerRequests.Domain/ServiceRequest.cs) (כללי העסק) ו-[`RequestRepository`](src/EmployerRequests.Infrastructure/Repositories/RequestRepository.cs) (השאילתות) ← [`AppDbContext`](src/EmployerRequests.Infrastructure/Data/AppDbContext.cs) ‏(EF Core) ← SQL Server.
 
-**מסלול של בקשה:** ‏`RequestsController` (רק HTTP) ← שירות ב-Application (ההחלטות) ← `ServiceRequest` (כללי העסק) ו-`IRequestRepository` (הנתונים) ← EF Core ← SQL Server.
+**כיוון התלויות:** ה-Domain לא תלוי בשום דבר. ה-Application מגדיר את `IRequestRepository` ולא מכיר את EF Core; ‏Infrastructure מממש אותו. ‏Api מכיר את כולם, כי ב-[`Program.cs`](src/EmployerRequests.Api/Program.cs) נרשמות כל המחלקות. כך הלוגיקה נבדקת בלי בסיס נתונים, והקומפיילר לא מאפשר לשכבה פנימית להשתמש בשכבה חיצונית.
 
 | רכיב | Lifetime | למה |
 |---|---|---|
 | `AppDbContext` | Scoped | אחד לכל בקשת HTTP – יחידת עבודה אחת. ‏DbContext אינו בטוח לשימוש מכמה Threads |
-| `RequestRepository`, השירותים, `HeaderCurrentUser` | Scoped | עובדים עם ה-DbContext ועם הכותרות של אותה בקשה |
-| `MemorySummaryCache` | Singleton | הנתונים השמורים ומונה הגרסאות משותפים לכל הבקשות |
-| `TimeProvider` | Singleton | שעון המערכת, בלי מצב. בבדיקות אפשר להחליף אותו בשעה קבועה |
+| `RequestRepository`, ‏`RequestService` | Scoped | עובדים עם ה-DbContext של אותה בקשה |
+| `SummaryCache` (ו-`IMemoryCache`) | Singleton | הסיכום השמור ומונה הגרסאות משותפים לכל המשתמשים |
+| `TestDataSeeder` | Scoped | רץ בעלייה, בתוך Scope משלו |
 
 ## API
 
@@ -207,7 +226,7 @@ PATCH /api/requests/status
 
 **שגיאות** מוחזרות כ-[Problem Details](https://www.rfc-editor.org/rfc/rfc9457) – פורמט אחד לכל השגיאות. ‏400 כולל את השדות הלא תקינים (`errors`), ו-422 כולל את הסטטוס הנוכחי ואת הסטטוסים המותרים (`allowedStatuses`).
 
-**מי ביצע את השינוי:** הכותרת `X-User-Name`, מקודדת ב-URL encoding (כותרות HTTP הן ASCII, ושמות יכולים להיות בעברית). באפיון אין הזדהות; ראו [מגבלות](#מגבלות-ידועות-ושיפורים).
+**מי ביצע את השינוי:** הכותרת `X-User-Name`, מקודדת ב-URL encoding (כותרות HTTP הן ASCII, ושמות יכולים להיות בעברית). ה-Controller קורא אותה (`[FromHeader]`) ומעביר את השם לשירות. באפיון אין הזדהות; ראו [מגבלות](#מגבלות-ידועות-ושיפורים).
 
 ## בסיס הנתונים והאינדקסים
 
@@ -245,7 +264,7 @@ dotnet tool restore
 dotnet ef migrations add <Name> --project src/EmployerRequests.Infrastructure --startup-project src/EmployerRequests.Api
 ```
 
-**נתוני הבדיקה:** ‏100,000 פניות בעברית, בדויות: ‏200 ארגונים, ‏30 מטפלים, תאריכים בשנתיים האחרונות; ‏20% חדשות, ‏30% בטיפול, ‏15% ממתינות, ‏35% הושלמו. הן נטענות ב-`SqlBulkCopy` (כמה שניות), ואחר כך האינדקסים נבנים מחדש. הקוד: [`TestDataSeeder`](src/EmployerRequests.Infrastructure/Data/Seeding/TestDataSeeder.cs).
+**נתוני הבדיקה:** ‏100,000 פניות בעברית, בדויות: ‏200 ארגונים, ‏30 מטפלים, תאריכים בשנתיים האחרונות; ‏20% חדשות, ‏30% בטיפול, ‏15% ממתינות, ‏35% הושלמו. הן נטענות ב-`SqlBulkCopy` (כמה שניות), ואחר כך האינדקסים נבנים מחדש. הקוד: [`TestDataSeeder`](src/EmployerRequests.Infrastructure/Data/TestDataSeeder.cs).
 
 **איך נמנעת טעינה של כל הנתונים לזיכרון:** כל קריאה נבנית כשאילתת `IQueryable` אחת ש-SQL Server מריץ במלואה – הסינון (`WHERE`), המיון (`ORDER BY`), הדפדוף (`OFFSET/FETCH`) והקיבוץ (`GROUP BY`). ‏`Select` ל-DTO בתוך השאילתה מוציא מבסיס הנתונים רק את העמודות הנדרשות, ורק את 20 השורות של העמוד. ‏`AsNoTracking` חוסך את מעקב השינויים בקריאות. אין `ToList` לפני סינון. ה-SQL שנוצר בפועל, תוכניות הביצוע והמדידות: [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
 
@@ -255,7 +274,7 @@ dotnet ef migrations add <Name> --project src/EmployerRequests.Infrastructure --
 
 1. כל פנייה מגיעה ללקוח עם `rowVersion`.
 2. בעדכון, הלקוח שולח את הסטטוס החדש ואת ה-`rowVersion` שהמשתמש רואה.
-3. [`RequestStatusService`](src/EmployerRequests.Application/Services/RequestStatusService.cs) טוען את הפנייה (404 אם אינה קיימת) ומשווה גרסאות. גרסה אחרת פירושה שמישהו שינה את הפנייה אחרי שהמשתמש טען אותה – ‏409, ושום דבר לא משתנה.
+3. [`RequestService`](src/EmployerRequests.Application/Services/RequestService.cs) טוען את הפנייה (404 אם אינה קיימת) ומשווה גרסאות. גרסה אחרת פירושה שמישהו שינה את הפנייה אחרי שהמשתמש טען אותה – ‏409, ושום דבר לא משתנה.
 4. [`ServiceRequest.ChangeStatus`](src/EmployerRequests.Domain/ServiceRequest.cs) בודק את המעבר מול [`StatusWorkflow`](src/EmployerRequests.Domain/StatusWorkflow.cs) (‏422 אם אינו מותר), מעדכן את הסטטוס ואת `UpdatedAt`, ומוסיף שורת היסטוריה.
 5. ‏`SaveChanges` שולח, בטרנזקציה אחת, את ה-INSERT של ההיסטוריה ואת:
    ```sql
@@ -295,56 +314,64 @@ dotnet ef migrations add <Name> --project src/EmployerRequests.Infrastructure --
 |---|---|
 | **מה נשמר** | הנתונים המסכמים של התצוגה ללא סינון (`GET /api/requests/summary` בלי פרמטרים) |
 | **למה דווקא זה** | זה המסך שכל משתמש פותח, החישוב עובר על כל הטבלה (שתי שאילתות קיבוץ), והתוצאה זהה לכל המשתמשים |
-| **תפוגה** | מוחלטת, 60 שניות (`SummaryCache:ExpirationSeconds`). זה החסם העליון ליישון במקרה של שינוי שלא עבר דרך ה-API הזה |
+| **תפוגה** | מוחלטת, 60 שניות (`SummaryCache.Expiration`). זה החסם העליון ליישון במקרה של שינוי שלא עבר דרך ה-API הזה |
 | **ניקוי** | מיד אחרי כל שינוי סטטוס שנשמר – גם באמצע עדכון מרוכז, כך שתקלה בפנייה הבאה לא משאירה סיכום ישן. הקריאה הבאה מחשבת מחדש, והמשתמש רואה את השינוי שלו |
 | **מרוץ** | חישוב שהתחיל לפני שינוי והסתיים אחריו היה שומר נתונים ישנים. מונה גרסאות שעולה בכל ניקוי: התוצאה נשמרת רק אם לא היה ניקוי בזמן החישוב (נבדק בבדיקת יחידה) |
 | **מה לא נשמר** | סיכומים עם סינון: יש אינסוף צירופים, ולכן סיכוי קטן לפגיעה, והשאילתות שלהם מצומצמות יותר |
 
-הקוד: [`MemorySummaryCache`](src/EmployerRequests.Infrastructure/Caching/MemorySummaryCache.cs) מממש את `ISummaryCache`, ו-[`RequestSummaryService`](src/EmployerRequests.Application/Services/RequestSummaryService.cs) מחליט מתי להשתמש בו.
+הקוד: [`SummaryCache`](src/EmployerRequests.Application/Services/SummaryCache.cs) שומר ומנקה, ו-[`RequestService`](src/EmployerRequests.Application/Services/RequestService.cs) מחליט מתי להשתמש בו (`GetSummaryAsync`) ומנקה אותו אחרי כל שמירה (`ApplyStatusChangeAsync`).
 
 **כמה מופעי שרת:** ‏`IMemoryCache` שמור בזיכרון של תהליך אחד. אם רצים כמה מופעים מאחורי Load Balancer, עדכון במופע א' מנקה רק את ה-Cache של א', ומופע ב' ממשיך להחזיר סיכום ישן עד 60 שניות. שתי דרכים לפתור:
 
 1. **Cache מבוזר** – Redis דרך `IDistributedCache`: עותק אחד לכל המופעים, והניקוי הוא מחיקת המפתח – כולם רואים אותו מיד. המחיר: קריאת רשת וסריאליזציה בכל קריאה.
 2. **Cache מקומי והודעת ניקוי** – כל מופע שומר עותק בזיכרון, ושינוי מפרסם הודעת ניקוי (Redis Pub/Sub או Message Bus) שכל המופעים מאזינים לה. קריאה מהירה כמו היום, עם עיכוב קטן עד שההודעה מגיעה.
 
-בשתי הדרכים מוחלף רק המימוש של `ISummaryCache`. השירותים לא משתנים.
+בשתי הדרכים משתנה רק `SummaryCache` – מאחורי אותן שתי מתודות, `GetOrCalculateAsync` ו-`Invalidate`. ‏`RequestService` לא משתנה.
 
 ## הלקוח – Angular
 
 ```text
 client/src/app/
-  core/                  המודלים (תואמים ל-DTOs), שירות ה-API, ה-Interceptor, תרגום שגיאות, תוויות בעברית
-  shared/                Pipes להצגת סטטוס ועדיפות
-  features/requests/
-    requests.store.ts    מצב המסך וצינור החיפוש
-    requests-page/       מחבר את ה-Store לרכיבים; פתיחת הפרטים; עדכון מרוכז
-    request-filters/     טופס הסינון (Debounce)
-    requests-table/      הטבלה: מיון, בחירה
-    requests-summary/    הנתונים המסכמים
-    request-details/     פרטים, עדכון סטטוס, טיפול ב-409, היסטוריה
-    bulk-status-bar/     סרגל העדכון המרוכז
+  components/
+    requests-page/              המסך: מחבר את שירות המצב לרכיבים; פתיחת הפרטים; עדכון מרוכז
+    request-filters/            טופס הסינון (Debounce)
+    requests-table/             הטבלה: מיון ובחירה
+    requests-summary/           הנתונים המסכמים
+    request-details-dialog/     פרטים, עדכון סטטוס, טיפול ב-409, היסטוריה
+    bulk-status-bar/            סרגל העדכון המרוכז
+  services/
+    requests-api.service.ts     קריאות ה-HTTP – מתודה לכל Endpoint, בלי מצב
+    requests-state.service.ts   מצב המסך וצינור החיפוש (switchMap)
+    current-user.service.ts     שם המשתמש שנרשם בהיסטוריה
+  models/request.models.ts      הטיפוסים – תואמים ל-DTOs של השרת
+  interceptors/                 מוסיף את שם המשתמש לכל קריאה ל-API
+  pipes/                        סטטוס ועדיפות בעברית
+  utils/                        הודעות שגיאה בעברית, תוויות, תרגום ה-Paginator
 ```
 
-* **הפרדת אחריות.** כל פנייה לשרת עוברת דרך [`RequestsApiService`](client/src/app/core/services/requests-api.service.ts) – מתודה לכל Endpoint, בלי מצב. מצב הרשימה (סינון, דפדוף, מיון, בחירה) נמצא ב-[`RequestsStore`](client/src/app/features/requests/requests.store.ts), עם Signals. רכיבי התצוגה – הסינון, הטבלה וסרגל העדכון המרוכז – רק מציגים ומדווחים על פעולות (`input` / `output`). רכיב הסיכום וחלון הפרטים טוענים בעצמם את הנתונים שלהם, דרך אותו שירות.
+* **הפרדת אחריות.** כל פנייה לשרת עוברת דרך [`RequestsApiService`](client/src/app/services/requests-api.service.ts) – מתודה לכל Endpoint, בלי מצב. מצב הרשימה (סינון, דפדוף, מיון, בחירה) נמצא ב-[`RequestsStateService`](client/src/app/services/requests-state.service.ts), עם Signals. רכיבי התצוגה – הסינון, הטבלה וסרגל העדכון המרוכז – רק מציגים ומדווחים על פעולות (`input` / `output`). רכיב הסיכום וחלון הפרטים טוענים בעצמם את הנתונים שלהם, דרך אותו שירות.
 * **הכול בצד השרת.** הלקוח לא מסנן, לא ממיין ולא מדפדף. כל שינוי בשאילתה מבקש עמוד אחד.
 * **Debounce.** הטופס מחכה 300ms אחרי ההקשה האחרונה, ואז שולח את הסינון – פעם אחת, ורק אם הוא השתנה (`distinctUntilChanged`).
-* **ביטול בקשות.** ה-Store מעביר כל שאילתה דרך `switchMap`: שאילתה חדשה מבטלת את הקודמת שעוד בדרך. הדפדפן מבטל את קריאת ה-HTTP, ה-`CancellationToken` בשרת מבטל את השאילתה ב-SQL Server, ותשובה ישנה לעולם לא דורסת תשובה חדשה.
+* **ביטול בקשות.** שירות המצב מעביר כל שאילתה דרך `switchMap`: שאילתה חדשה מבטלת את הקודמת שעוד בדרך. הדפדפן מבטל את קריאת ה-HTTP, ה-`CancellationToken` בשרת מבטל את השאילתה ב-SQL Server, ותשובה ישנה לעולם לא דורסת תשובה חדשה.
 * **מצבים.** טעינה – פס התקדמות מעל התוצאות הקודמות. אין תוצאות – הודעה. שגיאה – הודעה בעברית וכפתור לניסיון חוזר.
 * **409.** חלון הפרטים מסביר וטוען את המצב העדכני; העדכון המרוכז מסמן את הפניות שהתנגשו.
-* **שגיאות.** תשובת Problem Details הופכת להודעה בעברית במקום אחד: [`http-error.util.ts`](client/src/app/core/http/http-error.util.ts).
+* **שגיאות.** תשובת Problem Details הופכת להודעה בעברית במקום אחד: [`http-errors.ts`](client/src/app/utils/http-errors.ts).
+* **מי שינה.** השם מהשדה בראש המסך נשמר בדפדפן ([`CurrentUserService`](client/src/app/services/current-user.service.ts)), ו-[`currentUserInterceptor`](client/src/app/interceptors/current-user.interceptor.ts) מוסיף אותו לכל קריאה. חלון הפרטים מראה על שם מי יירשם השינוי, ואחרי השמירה מסמן את השורה החדשה בהיסטוריה.
 
 ## טיפול בשגיאות ו-Logging
 
 | מצב | תשובה | מי מטפל |
 |---|---|---|
-| קלט לא תקין | 400 עם השדות הלא תקינים | `[ApiController]`, לפי DataAnnotations ו-`IValidatableObject` בחוזים – עוד לפני שהפעולה רצה |
+| קלט לא תקין | 400 עם השדות הלא תקינים | `[ApiController]`, לפי DataAnnotations ו-`IValidatableObject` ב-DTOs – עוד לפני שהפעולה רצה |
 | הפנייה לא קיימת | 404 | `NotFoundException` ← [`GlobalExceptionHandler`](src/EmployerRequests.Api/ErrorHandling/GlobalExceptionHandler.cs) |
 | מישהו אחר שינה קודם | 409 | `ConcurrencyConflictException` ← `GlobalExceptionHandler` |
 | מעבר סטטוס אסור | 422, עם הסטטוסים המותרים | `InvalidStatusTransitionException` ← `GlobalExceptionHandler` |
 | הלקוח ביטל את הבקשה | 499, לא נרשם כשגיאה | ASP.NET Core עונה כך בעצמו כשהביטול מגיע כ-`OperationCanceledException`; שאילתה שנעצרה באמצע יכולה לחזור כחריגה של SQL Server – `GlobalExceptionHandler` מזהה גם אותה (Information) |
 | כל דבר אחר | 500, בלי פרטים פנימיים; החריגה המלאה נרשמת ללוג | `GlobalExceptionHandler` |
 
-**Logging:** שינוי סטטוס ועדכון מרוכז נרשמים כ-Information (מזהה, סטטוס קודם וחדש, כמה עודכנו); ‏404/‏409/‏422 כ-Warning; ‏500 כ-Error עם החריגה. ה-SQL ש-EF Core שולח לא נרשם כברירת מחדל. כדי לראות אותו:
+**שגיאות זמניות של בסיס הנתונים:** חיבור שנפל או Deadlock עוברים מעצמם, ולכן EF Core מנסה שוב עד 3 פעמים, בהפרש קצר, לפני שהשגיאה הופכת ל-500 (`EnableRetryOnFailure` ב-[`Program.cs`](src/EmployerRequests.Api/Program.cs)). התנגשות (409) וקלט לא תקין אינם שגיאות זמניות, ולא מנוסים שוב.
+
+**Logging:** שינוי סטטוס ועדכון מרוכז נרשמים כ-Information (מזהה, סטטוס קודם וחדש, כמה עודכנו); ‏404/‏409/‏422 כ-Warning; ‏500 כ-Error עם החריגה. כל שגיאה אמיתית נרשמת פעם אחת – על ידי `GlobalExceptionHandler`. רישומי השגיאה של EF Core על החיבור כבויים (`Microsoft.EntityFrameworkCore.Database.Connection` ב-[`appsettings.json`](src/EmployerRequests.Api/appsettings.json)): הם כפולים, ומופיעים גם כשהמשתמש רק ביטל בקשה – למשל, המשיך להקליד בחיפוש. ה-SQL ש-EF Core שולח לא נרשם כברירת מחדל. כדי לראות אותו:
 
 ```bash
 dotnet run --project src/EmployerRequests.Api -- --Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command=Information
@@ -352,7 +379,7 @@ dotnet run --project src/EmployerRequests.Api -- --Logging:LogLevel:Microsoft.En
 
 ## בדיקות אוטומטיות
 
-‏63 בדיקות שרת (36 יחידה, ‏27 Integration) ו-14 בדיקות לקוח, וכולן רצות ב-CI בכל Push ל-main ובכל Pull Request. בדיקות ה-Integration מריצות את ה-API האמיתי בזיכרון (`WebApplicationFactory<Program>`) מול SQL Server אמיתי – בסיס נתונים לכל מחלקת בדיקות, שנוצר מה-Migrations ונמחק בסוף.
+‏64 בדיקות שרת (37 יחידה, ‏27 Integration) ו-15 בדיקות לקוח, וכולן רצות ב-CI בכל Push ל-main ובכל Pull Request. בדיקות ה-Integration מריצות את ה-API האמיתי בזיכרון (`WebApplicationFactory<Program>`) מול SQL Server אמיתי – בסיס נתונים לכל מחלקת בדיקות, שנוצר מה-Migrations ונמחק בסוף.
 
 | בדיקה | סוג | מה היא מוכיחה |
 |---|---|---|
@@ -363,12 +390,12 @@ dotnet run --project src/EmployerRequests.Api -- --Logging:LogLevel:Microsoft.En
 | [`Filters_are_combined_and_the_page_is_sorted_and_cut_by_the_database`](tests/EmployerRequests.IntegrationTests/SearchRequestsTests.cs) | Integration | סינון משולב, מיון ודפדוף |
 | [`Paging_over_equal_sort_values_returns_every_request_exactly_once`](tests/EmployerRequests.IntegrationTests/SearchRequestsTests.cs) | Integration | מיון יציב בין עמודים |
 | [`The_cached_unfiltered_summary_is_refreshed_right_after_a_status_change`](tests/EmployerRequests.IntegrationTests/HistoryAndSummaryTests.cs) | Integration | ניקוי ה-Cache |
-| [`A_summary_calculated_while_a_status_change_was_saved_is_not_kept`](tests/EmployerRequests.UnitTests/Caching/MemorySummaryCacheTests.cs) | יחידה | המרוץ בין חישוב לשינוי |
+| [`A_summary_calculated_while_a_status_change_was_saved_is_not_kept`](tests/EmployerRequests.UnitTests/Services/SummaryCacheTests.cs) | יחידה | המרוץ בין חישוב לשינוי |
 | [`GlobalExceptionHandlerTests`](tests/EmployerRequests.UnitTests/ErrorHandling/GlobalExceptionHandlerTests.cs) | יחידה | חוזה השגיאות: 409 עם Problem Details, ‏500 בלי פרטים פנימיים, ולקוח שהתנתק אינו שגיאת שרת |
 | [`StatusWorkflowTests`](tests/EmployerRequests.UnitTests/Domain/StatusWorkflowTests.cs) | יחידה | כל המעברים המותרים מותרים, וכל השאר נדחים |
-| [`requests.store.spec.ts`](client/src/app/features/requests/requests.store.spec.ts) | Angular | חיפוש חדש מבטל את הקודם, ומוצגת רק התשובה החדשה |
-| [`request-filters.component.spec.ts`](client/src/app/features/requests/request-filters/request-filters.component.spec.ts) | Angular | Debounce: הקלדה מהירה שולחת סינון אחד |
-| [`request-details-dialog.component.spec.ts`](client/src/app/features/requests/request-details/request-details-dialog.component.spec.ts) | Angular | הגרסה נשלחת; ב-409 – הסבר וטעינת המצב העדכני |
+| [`requests-state.service.spec.ts`](client/src/app/services/requests-state.service.spec.ts) | Angular | חיפוש חדש מבטל את הקודם, ומוצגת רק התשובה החדשה |
+| [`request-filters.component.spec.ts`](client/src/app/components/request-filters/request-filters.component.spec.ts) | Angular | Debounce: הקלדה מהירה שולחת סינון אחד |
+| [`request-details-dialog.component.spec.ts`](client/src/app/components/request-details-dialog/request-details-dialog.component.spec.ts) | Angular | הגרסה נשלחת; ב-409 – הסבר וטעינת המצב העדכני; השינוי נרשם על שם המשתמש ומסומן בהיסטוריה |
 
 ## החלטות טכנולוגיות וחלופות
 
@@ -402,7 +429,7 @@ dotnet run --project src/EmployerRequests.Api -- --Logging:LogLevel:Microsoft.En
 
 | נושא | ההחלטה | הנימוק בקצרה |
 |---|---|---|
-| ארכיטקטורה | ארבע שכבות עם כיוון תלויות אחד | כללי העסק נבדקים בלי בסיס נתונים, והקומפיילר אוכף את ההפרדה |
+| ארכיטקטורה | ארבעה פרויקטים עם כיוון תלויות אחד, ובתוכם Controller ← Service ← Repository | כללי העסק נבדקים בלי בסיס נתונים, הקומפיילר אוכף את ההפרדה, ואין שכבות מעבר לנדרש |
 | קריאה | הטלה ל-DTO בתוך השאילתה, `AsNoTracking` | רק העמודות והשורות הנדרשות יוצאות מבסיס הנתונים |
 | סינון לפי ארגון ומטפל | "מתחיל ב-" | `LIKE 'x%'` משתמש באינדקס; ‏"מכיל" נשאר לחיפוש החופשי, כנדרש |
 | Cache | רק הסיכום ללא סינון | שם החישוב היקר ביותר והפגיעה הגבוהה ביותר |
@@ -429,7 +456,7 @@ dotnet run --project src/EmployerRequests.Api -- --Logging:LogLevel:Microsoft.En
 **איפה השתמשתי בו:** ניתוח האפיון ובניית תוכנית העבודה; ניסוח ההחלטות והחלופות; כתיבת קוד השרת, הלקוח, הבדיקות וה-CI; הרצת מדידות הביצועים וניתוחן; כתיבת התיעוד.
 
 **איך התוצאות נבדקו:**
-* כל Push ל-main וכל Pull Request בונים את הפתרון כש-Warnings נחשבות שגיאות, ומריצים את 63 בדיקות השרת מול SQL Server אמיתי ואת 14 בדיקות הלקוח.
+* כל Push ל-main וכל Pull Request בונים את הפתרון כש-Warnings נחשבות שגיאות, ומריצים את 64 בדיקות השרת מול SQL Server אמיתי ואת 15 בדיקות הלקוח.
 * בדיקת ה-Concurrency מריצה עדכונים מקבילים אמיתיים מול בסיס הנתונים, ולא מדמה אותם.
 * ה-SQL במסמך הביצועים נלקח מהלוג של האפליקציה, והמספרים נמדדו על 100,000 פניות ב-SQL Server – לא הוערכו.
 * **היסטוריית ה-Git:** ה-Commits מסודרים לפי המשימות שבתוכנית העבודה (המזהה בכל הודעה), ונוצרו בפרק זמן קצר, בעבודה עם ה-AI. הערכות הזמן בתוכנית הן לעבודה ידנית.

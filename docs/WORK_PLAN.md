@@ -51,7 +51,7 @@
 | 7 | Bulk | הצלחה חלקית, תוצאה לכל פנייה, כל פנייה בטרנזקציה משלה | פנייה אחת שמישהו שינה בינתיים לא חוסמת את כל השאר. כל פנייה עדיין מוגנת בבדיקת גרסה |
 | 8 | Cache | `IMemoryCache` לנתונים המסכמים של התצוגה ללא סינון: תפוגה של 60 שניות, וניקוי אחרי כל שינוי סטטוס | זה המסך שכולם מגיעים אליו והחישוב היקר ביותר (כל הטבלה). תצוגות מסוננות מצומצמות יותר ומשתמשות באינדקסים |
 | 9 | ממשק | Angular 21 – רכיבי Standalone ו-Signals, ‏Angular Material, עברית מימין לשמאל | רכיבים מוכנים ונגישים (טבלה, דפדוף, מיון, דיאלוג). המשתמשים דוברי עברית |
-| 10 | מצב הרשימה בלקוח | Store אחד עם Signals, וצינור RxJS: ‏`debounceTime` ואז `switchMap` | פחות בקשות לשרת, ותשובה ישנה לעולם לא דורסת תשובה חדשה |
+| 10 | מצב הרשימה בלקוח | שירות מצב אחד (`RequestsStateService`) עם Signals, וצינור RxJS: ‏`debounceTime` ואז `switchMap` | פחות בקשות לשרת, ותשובה ישנה לעולם לא דורסת תשובה חדשה |
 | 11 | נתוני בדיקה | 100,000 פניות שנוצרות מ-Seed קבוע ונטענות ב-`SqlBulkCopy`: אוטומטית בהרצה הראשונה, ובפקודת `seed` ליצירה מחדש | הבודק לא צריך צעד נוסף, וכל יצירה מחדש מייצרת אותם נתונים |
 | 12 | בדיקות | xUnit. בדיקות Integration מול SQL Server אמיתי, עם בסיס נתונים נפרד לכל מחלקת בדיקות | רק SQL Server מייצר `rowversion`. בדיקת Concurrency מול ספק אחר לא בודקת את המנגנון האמיתי |
 | 13 | CI | GitHub Actions: בנייה, בדיקות שרת מול SQL Server בקונטיינר, בנייה ובדיקות לקוח | כל שינוי נבדק אוטומטית, ומצב הבדיקות גלוי לבודקים |
@@ -60,18 +60,18 @@
 
 ```text
 src/
+  EmployerRequests.Api/             HTTP: ‏Controllers, ‏ErrorHandling, ‏Program.cs (כל רישומי ה-DI)
+  EmployerRequests.Application/     הלוגיקה: ‏DTOs, ‏Interfaces, ‏Services (‏RequestService, ‏SummaryCache), ‏Mapping, ‏Exceptions
   EmployerRequests.Domain/          הישויות וכללי העסק – בלי תלות בשום ספרייה
-  EmployerRequests.Application/     שירותים, DTOs, ולידציה, וממשקים לתשתית
-  EmployerRequests.Infrastructure/  EF Core: DbContext, אינדקסים, Migrations, Repository, Cache, Seeder
-  EmployerRequests.Api/             HTTP: Controller, טיפול בשגיאות, Swagger, הרכבת DI
+  EmployerRequests.Infrastructure/  בסיס הנתונים: ‏Data (‏AppDbContext, ‏Migrations, ‏TestDataSeeder), ‏Repositories
 tests/
   EmployerRequests.UnitTests/       כללי העסק, ולידציה, Cache, לוגיקת Bulk
   EmployerRequests.IntegrationTests/ ה-API כולו מול SQL Server אמיתי
-client/                             Angular 21
+client/                             Angular 21: ‏components, ‏services, ‏models, ‏interceptors, ‏pipes, ‏utils
 docs/                               תוכנית עבודה, ביצועים
 ```
 
-**כיוון התלויות:** `Api → Application → Domain`, ו-`Infrastructure → Application`; ‏Api מכיר גם את Infrastructure, רק כדי לרשום אותו ב-DI. ה-Application מגדיר ממשקים (`IRequestRepository`, ‏`ISummaryCache`, ‏`ICurrentUser`), ו-Infrastructure ו-Api מממשים אותם.
+**כיוון התלויות:** `Api → Application → Domain`, ו-`Infrastructure → Application`; ‏Api מכיר גם את Infrastructure, כדי לרשום אותו ב-DI. ה-Application מגדיר את `IRequestRepository`, ו-Infrastructure מממש אותו. בתוך הפרויקטים – החלוקה המוכרת: Controller ← Service ← Repository ← DbContext.
 
 ## 4. המשימות
 
@@ -105,7 +105,7 @@ docs/                               תוכנית עבודה, ביצועים
 
 | מזהה | משימה | מה נדרש | תוצר | תלויה ב- | הערכה | דרישה |
 |---|---|---|---|---|---|---|
-| Q1 | חוזה החיפוש וולידציה | `RequestSearchQuery`: גבולות `page` / `pageSize` (עד 100), שדות מיון מתוך רשימה סגורה, ערכי Enum חוקיים, טווח תאריכים תקין; 400 עם שם השדה | פרמטרים מאומתים | S3, M1 | 1.5 | R1 |
+| Q1 | חוזה החיפוש וולידציה | `RequestSearchDto`: גבולות `page` / `pageSize` (עד 100), שדות מיון מתוך רשימה סגורה, ערכי Enum חוקיים, טווח תאריכים תקין; 400 עם שם השדה | פרמטרים מאומתים | S3, M1 | 1.5 | R1 |
 | Q2 | השאילתה | סינונים משולבים ב-AND; חיפוש "מכיל"; מיון יציב (`Id` כשובר שוויון); ‏`COUNT` ועמוד אחד ב-`OFFSET/FETCH`; הטלה ל-DTO; ‏`CancellationToken` עד EF | `GET /api/requests` | Q1, M2 | 3 | R1 |
 | Q3 | פרטים והיסטוריה | פנייה אחת, כולל הסטטוסים שמותר לעבור אליהם; היסטוריה מהחדש לישן; 404 | `GET /api/requests/{id}`, ‏`/history` | M2, S3 | 1.5 | R1, R3 |
 | Q4 | Aggregations | `GROUP BY` אחד לפי סטטוס ועדיפות; חמשת המטפלים העמוסים; אותם סינונים כמו הרשימה | `GET /api/requests/summary` | Q2 | 2 | R1 |
@@ -121,14 +121,14 @@ docs/                               תוכנית עבודה, ביצועים
 
 | מזהה | משימה | מה נדרש | תוצר | תלויה ב- | הערכה | דרישה |
 |---|---|---|---|---|---|---|
-| B1 | חוזה וולידציה | 1–100 פריטים, בלי כפילויות, גרסה לכל פריט; בקשה לא תקינה מחזירה 400 ושום דבר לא מתעדכן | `BulkChangeStatusCommand` | U1 | 1 | R4 |
+| B1 | חוזה וולידציה | 1–100 פריטים, בלי כפילויות, גרסה לכל פריט; בקשה לא תקינה מחזירה 400 ושום דבר לא מתעדכן | `BulkChangeStatusDto` | U1 | 1 | R4 |
 | B2 | עיבוד ותוצאות | אותה לוגיקה של עדכון בודד, לכל פריט בנפרד; תוצאה לכל פריט ובסדר הבקשה; סיכום הצליחו / נכשלו | `PATCH /api/requests/status` | B1 | 1.5 | R4 |
 
 ### Epic 6 – Cache (R7)
 
 | מזהה | משימה | מה נדרש | תוצר | תלויה ב- | הערכה | דרישה |
 |---|---|---|---|---|---|---|
-| C1 | Cache לנתונים המסכמים | `ISummaryCache` ב-Application, מימוש ב-Infrastructure; תפוגה מהתצורה; ניקוי אחרי כל עדכון (בודד ו-Bulk); הגנה ממרוץ בין חישוב לעדכון | סיכום ללא סינון מהזיכרון | Q4, U1 | 2 | R7 |
+| C1 | Cache לנתונים המסכמים | `SummaryCache` (Singleton) מעל `IMemoryCache`; תפוגה של 60 שניות; ניקוי אחרי כל עדכון (בודד ו-Bulk); הגנה ממרוץ בין חישוב לעדכון | סיכום ללא סינון מהזיכרון | Q4, U1 | 2 | R7 |
 | C2 | כמה מופעי שרת | תכנון המעבר ל-Cache מבוזר (Redis) ולהודעות ניקוי בין מופעים | סעיף Cache ב-README | C1 | 0.5 | R7, R11 |
 
 ### Epic 7 – בדיקות אוטומטיות (R8)
@@ -145,12 +145,12 @@ docs/                               תוכנית עבודה, ביצועים
 |---|---|---|---|---|---|---|
 | A1 | שלד האפליקציה | Angular 21; ‏Material; עברית מימין לשמאל; Proxy ל-API; ‏Interceptor שמוסיף את שם המשתמש | אפליקציה שרצה | P3 | 1.5 | R5 |
 | A2 | שכבת ה-API | מודלים שתואמים ל-DTOs; שירות HTTP; תרגום Problem Details להודעות בעברית | `RequestsApiService` | A1, Q1 | 1.5 | R5 |
-| A3 | Store של הרשימה | מצב הסינון והדפדוף; ‏`switchMap` שמבטל בקשה קודמת; מצבי Loading / Empty / Error | `RequestsStore` | A2 | 2 | R5 |
+| A3 | שירות המצב של הרשימה | מצב הסינון והדפדוף; ‏`switchMap` שמבטל בקשה קודמת; מצבי Loading / Empty / Error | `RequestsStateService` | A2 | 2 | R5 |
 | A4 | סינון, טבלה, מיון ודפדוף | Debounce לשדות הטקסט; טבלה עם מיון ודפדוף בצד השרת | רכיבי סינון וטבלה | A3 | 3 | R5 |
 | A5 | סיכום | הצגת ה-Aggregations; טעינה מחדש כשמשתנה הסינון ואחרי עדכון | רכיב סיכום | A3, Q4 | 1.5 | R5 |
 | A6 | פרטים, עדכון והיסטוריה | פרטי פנייה; רק הסטטוסים המותרים; שליחת הגרסה; ב-409 – הסבר וטעינת המצב העדכני; היסטוריה | דיאלוג פרטים | A3, Q3, U2 | 3 | R2, R3, R5 |
 | A7 | Bulk בממשק | בחירת פניות; עדכון מרוכז; תוצאה לכל פנייה שלא עודכנה | סרגל Bulk | A4, B2 | 2 | R4, R5 |
-| A8 | בדיקות Angular | Store (ביטול בקשה), ‏Debounce, תרגום שגיאות, טיפול ב-409 | Specs | A5, A6, A7 | 2 | R5, R8 |
+| A8 | בדיקות Angular | שירות המצב (ביטול בקשה), ‏Debounce, תרגום שגיאות, טיפול ב-409 | Specs | A5, A6, A7 | 2 | R5, R8 |
 
 ### Epic 9 – ביצועים (R6)
 
