@@ -1,0 +1,48 @@
+# Requests to try the API by hand (Visual Studio, Rider, or VS Code with the REST Client extension).
+# Run the API first: dotnet run --project src/EmployerRequests.Api
+
+@baseUrl = http://localhost:5080
+
+### The first page, newest first
+GET {{baseUrl}}/api/requests?page=1&pageSize=20
+
+### Combined filters, sorted by priority
+GET {{baseUrl}}/api/requests?status=New&status=Waiting&priority=High&sortBy=priority&sortDirection=desc&pageSize=10
+
+### Summary of everything – served from the cache after the first call
+GET {{baseUrl}}/api/requests/summary
+
+### Summary of the high-priority requests – calculated on every call
+GET {{baseUrl}}/api/requests/summary?priority=High
+
+### One request – copy its rowVersion for the status change below
+GET {{baseUrl}}/api/requests/1
+
+### Its history
+GET {{baseUrl}}/api/requests/1/history
+
+### Change the status. Send it twice with the same rowVersion: the second answer is 409.
+PATCH {{baseUrl}}/api/requests/1/status
+Content-Type: application/json
+X-User-Name: dana
+
+{
+  "status": "InProgress",
+  "rowVersion": "PASTE-THE-ROWVERSION-HERE"
+}
+
+### Bulk change – every request gets its own outcome
+PATCH {{baseUrl}}/api/requests/status
+Content-Type: application/json
+X-User-Name: dana
+
+{
+  "status": "Waiting",
+  "items": [
+    { "id": 2, "rowVersion": "PASTE-THE-ROWVERSION-HERE" },
+    { "id": 3, "rowVersion": "PASTE-THE-ROWVERSION-HERE" }
+  ]
+}
+
+### Invalid parameters – 400 with the field names
+GET {{baseUrl}}/api/requests?pageSize=500&sortBy=password
