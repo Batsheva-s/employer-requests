@@ -36,10 +36,6 @@ public class RequestStatusService : IRequestStatusService
     public async Task<RequestDetailsDto> ChangeStatusAsync(int id, ChangeStatusCommand command, CancellationToken cancellationToken)
     {
         var request = await ApplyStatusChangeAsync(id, command.Status, command.RowVersion, cancellationToken);
-
-        // The summary counts requests by status, so the cached numbers are now outdated.
-        _summaryCache.Invalidate();
-
         return request.ToDetailsDto();
     }
 
@@ -58,11 +54,6 @@ public class RequestStatusService : IRequestStatusService
         }
 
         var succeeded = results.Count(result => result.Outcome == BulkItemOutcome.Updated);
-        if (succeeded > 0)
-        {
-            _summaryCache.Invalidate();
-        }
-
         _logger.LogInformation(
             "Bulk status change to {NewStatus}: {Succeeded} of {Requested} requests updated",
             command.Status, succeeded, results.Count);
@@ -80,16 +71,23 @@ public class RequestStatusService : IRequestStatusService
         }
         catch (NotFoundException)
         {
-            return new BulkItemResult(item.Id, BulkItemOutcome.NotFound, "The request does not exist.", null);
+            return NotUpdated(item.Id, BulkItemOutcome.NotFound, "The request does not exist.");
         }
         catch (ConcurrencyConflictException)
         {
-            return new BulkItemResult(item.Id, BulkItemOutcome.Conflict, "The request was changed by another user.", null);
+            return NotUpdated(item.Id, BulkItemOutcome.Conflict, "The request was changed by another user.");
         }
         catch (InvalidStatusTransitionException exception)
         {
-            return new BulkItemResult(item.Id, BulkItemOutcome.InvalidTransition, exception.Message, null);
+            return NotUpdated(item.Id, BulkItemOutcome.InvalidTransition, exception.Message);
         }
+    }
+
+    private BulkItemResult NotUpdated(int requestId, BulkItemOutcome outcome, string message)
+    {
+        // The same level as a single change that fails this way (GlobalExceptionHandler logs those as warnings).
+        _logger.LogWarning("Bulk change: request {RequestId} was not updated ({Outcome})", requestId, outcome);
+        return new BulkItemResult(requestId, outcome, message, null);
     }
 
     /// <summary>
@@ -121,6 +119,11 @@ public class RequestStatusService : IRequestStatusService
         // INSERT of the history row, in one transaction. If another user saved between step 1 and now, no row
         // matches, nothing is saved, and the repository throws ConcurrencyConflictException.
         await _repository.SaveChangesAsync(cancellationToken);
+
+        // Saved: the summary counts requests by status, so the cached numbers are outdated from this moment.
+        // Cleared here, right after each save, so that nothing that happens later – the next request of a bulk
+        // change failing, or the client going away – can leave an outdated summary behind.
+        _summaryCache.Invalidate();
 
         _logger.LogInformation(
             "Request {RequestId} status changed from {PreviousStatus} to {NewStatus}",

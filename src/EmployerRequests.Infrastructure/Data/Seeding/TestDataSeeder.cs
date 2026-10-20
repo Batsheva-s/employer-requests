@@ -112,6 +112,8 @@ public class TestDataSeeder
 
         // Inserting many rows into a table that already has indexes leaves them fragmented (page splits).
         // Rebuilding them after the bulk load restores full, ordered pages and refreshes the statistics.
+        // For a million rows this can take longer than the default command timeout of 30 seconds.
+        _dbContext.Database.SetCommandTimeout(TimeSpan.FromMinutes(5));
         await _dbContext.Database.ExecuteSqlRawAsync("ALTER INDEX ALL ON Requests REBUILD", cancellationToken);
 
         _logger.LogInformation("Inserted {Count} test requests", count);

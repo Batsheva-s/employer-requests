@@ -3,7 +3,11 @@ using EmployerRequests.Domain;
 
 namespace EmployerRequests.Application.Services;
 
-/// <summary>Entity → DTO mapping, in one place. The API never returns entities.</summary>
+/// <summary>
+/// Entity → DTO, for a request that was loaded as an entity (to change its status). Lists and history are
+/// projected to their DTOs inside the query itself (RequestRepository), so only the needed columns are read.
+/// Either way, the API never returns entities.
+/// </summary>
 public static class RequestMappings
 {
     public static RequestDetailsDto ToDetailsDto(this ServiceRequest request) =>

@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 namespace EmployerRequests.Domain;
 
 /// <summary>
@@ -12,17 +14,18 @@ namespace EmployerRequests.Domain;
 /// </summary>
 public static class StatusWorkflow
 {
-    private static readonly Dictionary<RequestStatus, RequestStatus[]> AllowedMoves = new()
+    // Read-only lists: what NextStatuses hands out cannot be used to change the rules.
+    private static readonly Dictionary<RequestStatus, ReadOnlyCollection<RequestStatus>> AllowedMoves = new()
     {
-        [RequestStatus.New] = [RequestStatus.InProgress, RequestStatus.Waiting],
-        [RequestStatus.InProgress] = [RequestStatus.Waiting, RequestStatus.Completed],
-        [RequestStatus.Waiting] = [RequestStatus.InProgress, RequestStatus.Completed],
-        [RequestStatus.Completed] = [RequestStatus.InProgress],
+        [RequestStatus.New] = new([RequestStatus.InProgress, RequestStatus.Waiting]),
+        [RequestStatus.InProgress] = new([RequestStatus.Waiting, RequestStatus.Completed]),
+        [RequestStatus.Waiting] = new([RequestStatus.InProgress, RequestStatus.Completed]),
+        [RequestStatus.Completed] = new([RequestStatus.InProgress]),
     };
 
     /// <summary>The statuses a request in <paramref name="current"/> status may move to.</summary>
     public static IReadOnlyList<RequestStatus> NextStatuses(RequestStatus current) =>
-        AllowedMoves.TryGetValue(current, out var next) ? next : [];
+        AllowedMoves.TryGetValue(current, out var next) ? next : ReadOnlyCollection<RequestStatus>.Empty;
 
     public static bool CanMove(RequestStatus from, RequestStatus to) =>
         NextStatuses(from).Contains(to);

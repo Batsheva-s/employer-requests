@@ -11,15 +11,13 @@ namespace EmployerRequests.Api.ErrorHandling;
 /// <item>404 – the request does not exist (<see cref="NotFoundException"/>).</item>
 /// <item>409 – someone else changed the request first (<see cref="ConcurrencyConflictException"/>).</item>
 /// <item>422 – the workflow does not allow the status change (<see cref="InvalidStatusTransitionException"/>).</item>
+/// <item>499 – the client went away before the answer: not an error.</item>
 /// <item>500 – anything unexpected: logged in full, returned without internal details.</item>
 /// </list>
 /// Invalid input never gets here: [ApiController] answers it with 400 before the action runs.
 /// </summary>
 public class GlobalExceptionHandler : IExceptionHandler
 {
-    // A de facto standard (nginx) for "the client closed the request". Nobody receives it; it keeps the logs honest.
-    private const int ClientClosedRequest = 499;
-
     private readonly IProblemDetailsService _problemDetailsService;
     private readonly ILogger<GlobalExceptionHandler> _logger;
 
@@ -35,11 +33,13 @@ public class GlobalExceptionHandler : IExceptionHandler
         var path = httpContext.Request.Path;
 
         // The browser gave up on the request – for example, the user kept typing and the client cancelled the
-        // old search. The database query was cancelled too, through the CancellationToken. This is not an error.
-        if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
+        // old search – and the CancellationToken stopped the database query. ASP.NET Core itself answers 499 when
+        // that surfaces as an OperationCanceledException; a query stopped in the middle can also come back as a
+        // SqlException ("Operation cancelled by user"). Whatever the exception, it is not a server error.
+        if (httpContext.RequestAborted.IsCancellationRequested)
         {
             _logger.LogInformation("{Method} {Path} was cancelled by the client", method, path);
-            httpContext.Response.StatusCode = ClientClosedRequest;
+            httpContext.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
             return true;
         }
 
