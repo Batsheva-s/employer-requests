@@ -10,7 +10,12 @@
     </mat-select>
   </mat-form-field>
 
-  <button mat-flat-button type="button" (click)="apply.emit(newStatus())" [disabled]="busy() || count() > maxItems">
+  <button
+    mat-flat-button
+    type="button"
+    (click)="applyNewStatus()"
+    [disabled]="busy() || count() > maxItems || newStatus() === null"
+  >
     {{ busy() ? 'מעדכן…' : 'עדכון הנבחרות' }}
   </button>
   <button mat-button type="button" (click)="clear.emit()">ניקוי הבחירה</button>

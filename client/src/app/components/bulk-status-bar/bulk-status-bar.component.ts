@@ -6,7 +6,11 @@ import { requestsCount } from '../../utils/labels';
 import { RequestStatus } from '../../models/request.models';
 import { StatusLabelPipe } from '../../pipes/labels.pipe';
 
-/** Appears while requests are selected: pick one status and apply it to all of them. */
+/**
+ * Appears while requests are selected: pick one status and apply it to all of them.
+ * No status is preselected, as in the request dialog: one click must never change many requests to a status
+ * the user did not choose.
+ */
 @Component({
   selector: 'app-bulk-status-bar',
   imports: [MatButtonModule, MatFormFieldModule, MatSelectModule, StatusLabelPipe],
@@ -25,7 +29,9 @@ export class BulkStatusBarComponent {
   readonly apply = output<RequestStatus>();
   readonly clear = output<void>();
 
-  protected readonly newStatus = signal<RequestStatus>('InProgress');
+  /** Null until the user picks a status; until then the update button is disabled. */
+  protected readonly newStatus = signal<RequestStatus | null>(null);
+
   /** "נבחרה פנייה אחת" / "נבחרו 3 פניות" */
   protected readonly selectedText = computed(() => {
     if (this.count() === 1) {
@@ -33,4 +39,12 @@ export class BulkStatusBarComponent {
     }
     return `נבחרו ${requestsCount(this.count())}`;
   });
+
+  protected applyNewStatus(): void {
+    const status = this.newStatus();
+    if (status === null) {
+      return; // the button is disabled in this case; this is only a safety check
+    }
+    this.apply.emit(status);
+  }
 }
