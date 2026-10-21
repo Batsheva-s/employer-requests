@@ -3,9 +3,15 @@ using EmployerRequests.Domain;
 namespace EmployerRequests.Application.DTOs;
 
 /// <summary>One row of a request's status history: when, from which status to which, and who made the change.</summary>
-public record RequestStatusChangeDto(
-    long Id,
-    RequestStatus PreviousStatus,
-    RequestStatus NewStatus,
-    string ChangedBy,
-    DateTimeOffset ChangedAt);
+public class RequestStatusChangeDto
+{
+    public long Id { get; set; }
+
+    public RequestStatus PreviousStatus { get; set; }
+
+    public RequestStatus NewStatus { get; set; }
+
+    public string ChangedBy { get; set; } = string.Empty;
+
+    public DateTimeOffset ChangedAt { get; set; }
+}

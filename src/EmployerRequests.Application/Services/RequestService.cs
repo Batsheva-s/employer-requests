@@ -119,7 +119,13 @@ public class RequestService : IRequestService
             "Bulk status change to {NewStatus}: {Succeeded} of {Requested} requests updated",
             bulkChange.Status, succeeded, results.Count);
 
-        return new BulkChangeStatusResultDto(results.Count, succeeded, failed, results);
+        return new BulkChangeStatusResultDto
+        {
+            Requested = results.Count,
+            Succeeded = succeeded,
+            Failed = failed,
+            Items = results
+        };
     }
 
     /// <summary>One request of a bulk change: the reason it was not updated, if any, becomes its outcome.</summary>
@@ -132,7 +138,12 @@ public class RequestService : IRequestService
         try
         {
             var request = await ApplyStatusChangeAsync(item.Id, newStatus, item.RowVersion, changedBy, cancellationToken);
-            return new BulkItemResultDto(item.Id, BulkItemOutcome.Updated, null, request.RowVersion);
+            return new BulkItemResultDto
+            {
+                Id = item.Id,
+                Outcome = BulkItemOutcome.Updated,
+                RowVersion = request.RowVersion
+            };
         }
         catch (NotFoundException)
         {
@@ -152,7 +163,12 @@ public class RequestService : IRequestService
     {
         // The same level as a single change that fails this way (GlobalExceptionHandler logs those as warnings).
         _logger.LogWarning("Bulk change: request {RequestId} was not updated ({Outcome})", requestId, outcome);
-        return new BulkItemResultDto(requestId, outcome, message, null);
+        return new BulkItemResultDto
+        {
+            Id = requestId,
+            Outcome = outcome,
+            Message = message
+        };
     }
 
     /// <summary>
@@ -217,7 +233,7 @@ public class RequestService : IRequestService
         foreach (var status in Enum.GetValues<RequestStatus>())
         {
             var countForStatus = counts.Where(count => count.Status == status).Sum(count => count.Count);
-            byStatus.Add(new StatusCountDto(status, countForStatus));
+            byStatus.Add(new StatusCountDto { Status = status, Count = countForStatus });
         }
 
         // The same for every priority.
@@ -225,11 +241,18 @@ public class RequestService : IRequestService
         foreach (var priority in Enum.GetValues<RequestPriority>())
         {
             var countForPriority = counts.Where(count => count.Priority == priority).Sum(count => count.Count);
-            byPriority.Add(new PriorityCountDto(priority, countForPriority));
+            byPriority.Add(new PriorityCountDto { Priority = priority, Count = countForPriority });
         }
 
         var totalCount = counts.Sum(count => count.Count);
 
-        return new RequestsSummaryDto(totalCount, byStatus, byPriority, topAssignees, DateTimeOffset.UtcNow);
+        return new RequestsSummaryDto
+        {
+            TotalCount = totalCount,
+            ByStatus = byStatus,
+            ByPriority = byPriority,
+            TopAssignees = topAssignees,
+            CalculatedAt = DateTimeOffset.UtcNow
+        };
     }
 }

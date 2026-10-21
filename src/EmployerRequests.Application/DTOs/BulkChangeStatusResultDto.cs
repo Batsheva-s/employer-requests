@@ -5,17 +5,30 @@ namespace EmployerRequests.Application.DTOs;
 /// The HTTP status is 200 whenever the batch itself was valid, so the client reads <c>Succeeded</c> and every
 /// item's <c>Outcome</c>.
 /// </summary>
-public record BulkChangeStatusResultDto(
-    int Requested,
-    int Succeeded,
-    int Failed,
-    IReadOnlyList<BulkItemResultDto> Items);
+public class BulkChangeStatusResultDto
+{
+    public int Requested { get; set; }
 
-/// <summary>
-/// The result for one request. <c>Message</c> says why it was not updated (empty when it was);
-/// <c>RowVersion</c> is the new version of an updated request (empty when it was not updated).
-/// </summary>
-public record BulkItemResultDto(int Id, BulkItemOutcome Outcome, string? Message, byte[]? RowVersion);
+    public int Succeeded { get; set; }
+
+    public int Failed { get; set; }
+
+    public IReadOnlyList<BulkItemResultDto> Items { get; set; } = new List<BulkItemResultDto>();
+}
+
+/// <summary>The result for one request of a bulk change.</summary>
+public class BulkItemResultDto
+{
+    public int Id { get; set; }
+
+    public BulkItemOutcome Outcome { get; set; }
+
+    /// <summary>Why the request was not updated; empty (null) when it was.</summary>
+    public string? Message { get; set; }
+
+    /// <summary>The new version of an updated request; empty (null) when it was not updated.</summary>
+    public byte[]? RowVersion { get; set; }
+}
 
 public enum BulkItemOutcome
 {

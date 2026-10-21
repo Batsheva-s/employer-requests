@@ -25,38 +25,58 @@ public class RequestRepository : IRequestRepository
 
     public async Task<PagedResultDto<RequestListItemDto>> SearchAsync(RequestSearchDto search, CancellationToken cancellationToken)
     {
-        // The query is only built here: nothing is sent to the database yet.
-        var query = Filter(_dbContext.Requests.AsNoTracking(), search);
+        // 1. Build the query with the filters. Nothing is sent to the database yet.
+        IQueryable<ServiceRequest> query = _dbContext.Requests.AsNoTracking();
+        query = ApplyFilters(query, search);
 
-        // Query 1: SELECT COUNT(*) FROM Requests WHERE <filters> – for the number of pages.
-        var totalCount = await query.CountAsync(cancellationToken);
+        // 2. How many requests match, for the number of pages:
+        //    SELECT COUNT(*) FROM Requests WHERE <filters>
+        int totalCount = await query.CountAsync(cancellationToken);
 
-        // long, so that a huge page number cannot overflow the multiplication.
-        var skip = (long)(search.Page - 1) * search.PageSize;
-        if (skip >= totalCount)
+        // 3. How many rows come before the requested page. (long: a huge page number times the page size
+        //    could overflow an int.)
+        long rowsBeforePage = (long)(search.Page - 1) * search.PageSize;
+        if (rowsBeforePage >= totalCount)
         {
-            // Past the last page: no need to ask the database for rows that do not exist.
-            return new PagedResultDto<RequestListItemDto>(new List<RequestListItemDto>(), search.Page, search.PageSize, totalCount);
+            // The page is past the last row: it is empty, and the database is not asked again.
+            return new PagedResultDto<RequestListItemDto>
+            {
+                Items = new List<RequestListItemDto>(),
+                Page = search.Page,
+                PageSize = search.PageSize,
+                TotalCount = totalCount
+            };
         }
 
-        // Query 2: SELECT <the DTO's columns> FROM Requests WHERE <filters> ORDER BY <sort>, Id
-        //          OFFSET <skip> ROWS FETCH NEXT <page size> ROWS ONLY
-        var items = await Sort(query, search.SortBy, search.SortDirection)
-            .Skip((int)skip)
+        // 4. Sort, cut out the page, and read only the columns of the DTO:
+        //    SELECT ... FROM Requests WHERE <filters> ORDER BY <sort>, Id
+        //    OFFSET <rows before the page> ROWS FETCH NEXT <page size> ROWS ONLY
+        query = ApplySort(query, search.SortBy, search.SortDirection);
+
+        List<RequestListItemDto> items = await query
+            .Skip((int)rowsBeforePage)   // smaller than totalCount here, so it fits in an int
             .Take(search.PageSize)
-            .Select(request => new RequestListItemDto(
-                request.Id,
-                request.Title,
-                request.OrganizationName,
-                request.Status,
-                request.Priority,
-                request.AssignedTo,
-                request.CreatedAt,
-                request.UpdatedAt,
-                request.RowVersion))
+            .Select(request => new RequestListItemDto
+            {
+                Id = request.Id,
+                Title = request.Title,
+                OrganizationName = request.OrganizationName,
+                Status = request.Status,
+                Priority = request.Priority,
+                AssignedTo = request.AssignedTo,
+                CreatedAt = request.CreatedAt,
+                UpdatedAt = request.UpdatedAt,
+                RowVersion = request.RowVersion
+            })
             .ToListAsync(cancellationToken);
 
-        return new PagedResultDto<RequestListItemDto>(items, search.Page, search.PageSize, totalCount);
+        return new PagedResultDto<RequestListItemDto>
+        {
+            Items = items,
+            Page = search.Page,
+            PageSize = search.PageSize,
+            TotalCount = totalCount
+        };
     }
 
     public async Task<ServiceRequest?> GetByIdAsync(int id, CancellationToken cancellationToken)
@@ -75,28 +95,37 @@ public class RequestRepository : IRequestRepository
 
     public async Task<IReadOnlyList<RequestStatusChangeDto>> GetHistoryAsync(int requestId, CancellationToken cancellationToken)
     {
-        // SELECT <the DTO's columns> FROM RequestStatusChanges WHERE RequestId = @requestId
-        // ORDER BY ChangedAt DESC, Id DESC
+        // SELECT ... FROM RequestStatusChanges WHERE RequestId = @requestId ORDER BY ChangedAt DESC, Id DESC
         return await _dbContext.RequestStatusChanges
             .AsNoTracking()
             .Where(change => change.RequestId == requestId)
             .OrderByDescending(change => change.ChangedAt)
             .ThenByDescending(change => change.Id)
-            .Select(change => new RequestStatusChangeDto(
-                change.Id,
-                change.PreviousStatus,
-                change.NewStatus,
-                change.ChangedBy,
-                change.ChangedAt))
+            .Select(change => new RequestStatusChangeDto
+            {
+                Id = change.Id,
+                PreviousStatus = change.PreviousStatus,
+                NewStatus = change.NewStatus,
+                ChangedBy = change.ChangedBy,
+                ChangedAt = change.ChangedAt
+            })
             .ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<StatusPriorityCount>> CountByStatusAndPriorityAsync(RequestFilterDto filter, CancellationToken cancellationToken)
     {
         // SELECT Status, Priority, COUNT(*) FROM Requests WHERE <filters> GROUP BY Status, Priority
-        return await Filter(_dbContext.Requests.AsNoTracking(), filter)
-            .GroupBy(request => new { request.Status, request.Priority })
-            .Select(group => new StatusPriorityCount(group.Key.Status, group.Key.Priority, group.Count()))
+        IQueryable<ServiceRequest> query = _dbContext.Requests.AsNoTracking();
+        query = ApplyFilters(query, filter);
+
+        return await query
+            .GroupBy(request => new { Status = request.Status, Priority = request.Priority })
+            .Select(group => new StatusPriorityCount
+            {
+                Status = group.Key.Status,
+                Priority = group.Key.Priority,
+                Count = group.Count()
+            })
             .ToListAsync(cancellationToken);
     }
 
@@ -105,16 +134,21 @@ public class RequestRepository : IRequestRepository
         // SELECT TOP (@count) AssignedTo, COUNT(*) FROM Requests
         // WHERE <filters> AND AssignedTo IS NOT NULL AND Status <> Completed
         // GROUP BY AssignedTo ORDER BY COUNT(*) DESC, AssignedTo
-        return await Filter(_dbContext.Requests.AsNoTracking(), filter)
+        IQueryable<ServiceRequest> query = _dbContext.Requests.AsNoTracking();
+        query = ApplyFilters(query, filter);
+
+        return await query
             .Where(request => request.AssignedTo != null && request.Status != RequestStatus.Completed)
             // The ! only tells the compiler that AssignedTo is not null here – the Where above made sure of it.
             .GroupBy(request => request.AssignedTo!)
-            // An anonymous type first: EF Core can sort by its properties in SQL. The DTO is created last.
-            .Select(group => new { AssignedTo = group.Key, OpenRequests = group.Count() })
+            .Select(group => new AssigneeWorkloadDto
+            {
+                AssignedTo = group.Key,
+                OpenRequests = group.Count()
+            })
             .OrderByDescending(workload => workload.OpenRequests)
             .ThenBy(workload => workload.AssignedTo)
             .Take(count)
-            .Select(workload => new AssigneeWorkloadDto(workload.AssignedTo, workload.OpenRequests))
             .ToListAsync(cancellationToken);
     }
 
@@ -138,7 +172,7 @@ public class RequestRepository : IRequestRepository
         {
             // The UPDATE found a different RowVersion: someone else saved this request first.
             // The exception lists the entities whose save failed; we take the id of the request among them.
-            var requestId = 0;
+            int requestId = 0;
             foreach (var entry in exception.Entries)
             {
                 if (entry.Entity is ServiceRequest request)
@@ -156,123 +190,186 @@ public class RequestRepository : IRequestRepository
         }
     }
 
-    // ---------- Filtering and sorting: LINQ that EF Core turns into the WHERE and the ORDER BY ----------
+    // ---------- Filters: one small method per filter ----------
 
-    /// <summary>Adds a WHERE condition for every filter the user filled in. The conditions are combined with AND.</summary>
-    private static IQueryable<ServiceRequest> Filter(IQueryable<ServiceRequest> requests, RequestFilterDto filter)
+    /// <summary>
+    /// Adds a WHERE condition for every filter the user filled in; the conditions are combined with AND.
+    /// Each filter method returns the query unchanged when its filter is empty.
+    /// Nothing runs here: the query is only built, and runs later – in CountAsync or ToListAsync.
+    /// </summary>
+    private static IQueryable<ServiceRequest> ApplyFilters(IQueryable<ServiceRequest> query, RequestFilterDto filter)
     {
-        if (!string.IsNullOrWhiteSpace(filter.Search))
-        {
-            var text = filter.Search.Trim();
-            // Title LIKE '%text%' OR OrganizationName LIKE '%text%'. EF Core escapes %, _ and [ in the text,
-            // so they are searched as plain characters.
-            requests = requests.Where(request => request.Title.Contains(text) || request.OrganizationName.Contains(text));
-        }
-
-        if (filter.Status != null && filter.Status.Length > 0)
-        {
-            RequestStatus[] statuses = filter.Status;
-            // Status IN (1, 3). EF.Constant writes the values into the SQL itself, so SQL Server knows exactly which
-            // statuses it looks for and can use the index. (Without it, EF Core 9 sends them as one JSON parameter.)
-            requests = requests.Where(request => EF.Constant(statuses).Contains(request.Status));
-        }
-
-        if (filter.Priority != null && filter.Priority.Length > 0)
-        {
-            RequestPriority[] priorities = filter.Priority;
-            // Priority IN (...), the same way.
-            requests = requests.Where(request => EF.Constant(priorities).Contains(request.Priority));
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.OrganizationName))
-        {
-            var prefix = filter.OrganizationName.Trim();
-            // OrganizationName LIKE 'text%' – "starts with", so SQL Server can seek IX_Requests_OrganizationName.
-            requests = requests.Where(request => request.OrganizationName.StartsWith(prefix));
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.AssignedTo))
-        {
-            var prefix = filter.AssignedTo.Trim();
-            // AssignedTo LIKE 'text%', on IX_Requests_AssignedTo_Status. No "AssignedTo != null" check: in SQL,
-            // NULL LIKE 'x%' is never true, and the extra IS NOT NULL made SQL Server read the whole index instead of
-            // seeking the prefix (measured – docs/PERFORMANCE.md). The ! only tells the compiler; this runs in SQL.
-            requests = requests.Where(request => request.AssignedTo!.StartsWith(prefix));
-        }
-
-        if (filter.CreatedFrom != null)
-        {
-            var from = filter.CreatedFrom.Value;
-            // CreatedAt >= from – the first moment is included.
-            requests = requests.Where(request => request.CreatedAt >= from);
-        }
-
-        if (filter.CreatedTo != null)
-        {
-            var to = filter.CreatedTo.Value;
-            // CreatedAt < to – the client sends the start of the day after the last day the user picked.
-            requests = requests.Where(request => request.CreatedAt < to);
-        }
-
-        return requests;
+        query = FilterBySearchText(query, filter.Search);
+        query = FilterByStatuses(query, filter.Status);
+        query = FilterByPriorities(query, filter.Priority);
+        query = FilterByOrganizationName(query, filter.OrganizationName);
+        query = FilterByAssignedTo(query, filter.AssignedTo);
+        query = FilterByCreatedFrom(query, filter.CreatedFrom);
+        query = FilterByCreatedTo(query, filter.CreatedTo);
+        return query;
     }
+
+    /// <summary>The text appears in the title or in the organization name.</summary>
+    private static IQueryable<ServiceRequest> FilterBySearchText(IQueryable<ServiceRequest> query, string? searchText)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return query;
+        }
+
+        // Title LIKE '%text%' OR OrganizationName LIKE '%text%'.
+        // EF Core escapes %, _ and [ in the text, so they are searched as plain characters.
+        string text = searchText.Trim();
+        return query.Where(request => request.Title.Contains(text) || request.OrganizationName.Contains(text));
+    }
+
+    /// <summary>The request's status is one of the chosen statuses.</summary>
+    private static IQueryable<ServiceRequest> FilterByStatuses(IQueryable<ServiceRequest> query, RequestStatus[]? statuses)
+    {
+        if (statuses == null || statuses.Length == 0)
+        {
+            return query;
+        }
+
+        // Status IN (1, 3) – the values are written into the SQL itself (see Program.cs).
+        return query.Where(request => statuses.Contains(request.Status));
+    }
+
+    /// <summary>The request's priority is one of the chosen priorities.</summary>
+    private static IQueryable<ServiceRequest> FilterByPriorities(IQueryable<ServiceRequest> query, RequestPriority[]? priorities)
+    {
+        if (priorities == null || priorities.Length == 0)
+        {
+            return query;
+        }
+
+        // Priority IN (...)
+        return query.Where(request => priorities.Contains(request.Priority));
+    }
+
+    /// <summary>The organization name starts with the text.</summary>
+    private static IQueryable<ServiceRequest> FilterByOrganizationName(IQueryable<ServiceRequest> query, string? organizationName)
+    {
+        if (string.IsNullOrWhiteSpace(organizationName))
+        {
+            return query;
+        }
+
+        // OrganizationName LIKE 'text%' – "starts with", so SQL Server can seek IX_Requests_OrganizationName.
+        string prefix = organizationName.Trim();
+        return query.Where(request => request.OrganizationName.StartsWith(prefix));
+    }
+
+    /// <summary>The handler's name starts with the text.</summary>
+    private static IQueryable<ServiceRequest> FilterByAssignedTo(IQueryable<ServiceRequest> query, string? assignedTo)
+    {
+        if (string.IsNullOrWhiteSpace(assignedTo))
+        {
+            return query;
+        }
+
+        // AssignedTo LIKE 'text%', on IX_Requests_AssignedTo_Status. No "AssignedTo != null" check: in SQL,
+        // NULL LIKE 'x%' is never true, and the extra IS NOT NULL made SQL Server read the whole index instead of
+        // seeking the prefix (measured – docs/PERFORMANCE.md). The ! only silences the compiler's null warning.
+        string prefix = assignedTo.Trim();
+        return query.Where(request => request.AssignedTo!.StartsWith(prefix));
+    }
+
+    /// <summary>Created at or after this moment.</summary>
+    private static IQueryable<ServiceRequest> FilterByCreatedFrom(IQueryable<ServiceRequest> query, DateTimeOffset? createdFrom)
+    {
+        if (createdFrom == null)
+        {
+            return query;
+        }
+
+        // CreatedAt >= from – the first moment is included.
+        DateTimeOffset from = createdFrom.Value;
+        return query.Where(request => request.CreatedAt >= from);
+    }
+
+    /// <summary>Created before this moment.</summary>
+    private static IQueryable<ServiceRequest> FilterByCreatedTo(IQueryable<ServiceRequest> query, DateTimeOffset? createdTo)
+    {
+        if (createdTo == null)
+        {
+            return query;
+        }
+
+        // CreatedAt < to – the client sends the start of the day after the last day the user picked.
+        DateTimeOffset to = createdTo.Value;
+        return query.Where(request => request.CreatedAt < to);
+    }
+
+    // ---------- Sorting ----------
 
     /// <summary>
     /// ORDER BY the field the user chose, in the direction she chose, and then by Id.
     /// The fields are a closed list (an enum), so a client can never sort by an arbitrary column.
     /// </summary>
-    private static IQueryable<ServiceRequest> Sort(IQueryable<ServiceRequest> requests, RequestSortField sortBy, SortDirection direction)
+    private static IQueryable<ServiceRequest> ApplySort(IQueryable<ServiceRequest> query, RequestSortField sortBy, SortDirection direction)
     {
-        var ascending = direction == SortDirection.Asc;
-        IOrderedQueryable<ServiceRequest> sorted;
+        if (direction == SortDirection.Asc)
+        {
+            return SortAscending(query, sortBy);
+        }
 
+        return SortDescending(query, sortBy);
+    }
+
+    /// <summary>
+    /// ORDER BY &lt;field&gt; ASC, Id ASC.
+    /// Many requests share a status or a priority. Id breaks the ties, so the order is always the same: while the
+    /// data does not change between the requests, a row never appears on two pages or on none.
+    /// </summary>
+    private static IQueryable<ServiceRequest> SortAscending(IQueryable<ServiceRequest> query, RequestSortField sortBy)
+    {
         switch (sortBy)
         {
             case RequestSortField.UpdatedAt:
-                sorted = ascending
-                    ? requests.OrderBy(request => request.UpdatedAt)
-                    : requests.OrderByDescending(request => request.UpdatedAt);
-                break;
+                return query.OrderBy(request => request.UpdatedAt).ThenBy(request => request.Id);
 
             case RequestSortField.Title:
-                sorted = ascending
-                    ? requests.OrderBy(request => request.Title)
-                    : requests.OrderByDescending(request => request.Title);
-                break;
+                return query.OrderBy(request => request.Title).ThenBy(request => request.Id);
 
             case RequestSortField.OrganizationName:
-                sorted = ascending
-                    ? requests.OrderBy(request => request.OrganizationName)
-                    : requests.OrderByDescending(request => request.OrganizationName);
-                break;
+                return query.OrderBy(request => request.OrganizationName).ThenBy(request => request.Id);
 
             case RequestSortField.Status:
-                sorted = ascending
-                    ? requests.OrderBy(request => request.Status)
-                    : requests.OrderByDescending(request => request.Status);
-                break;
+                return query.OrderBy(request => request.Status).ThenBy(request => request.Id);
 
             case RequestSortField.Priority:
-                sorted = ascending
-                    ? requests.OrderBy(request => request.Priority)
-                    : requests.OrderByDescending(request => request.Priority);
-                break;
+                return query.OrderBy(request => request.Priority).ThenBy(request => request.Id);
 
             case RequestSortField.CreatedAt:
             default:
-                sorted = ascending
-                    ? requests.OrderBy(request => request.CreatedAt)
-                    : requests.OrderByDescending(request => request.CreatedAt);
-                break;
+                return query.OrderBy(request => request.CreatedAt).ThenBy(request => request.Id);
         }
+    }
 
-        // Many requests share a status or a priority. Id breaks the ties, so the order is always the same: while the
-        // data does not change between the requests, a row never appears on two pages or on none.
-        if (ascending)
+    /// <summary>ORDER BY &lt;field&gt; DESC, Id DESC – the same fields, newest or highest first.</summary>
+    private static IQueryable<ServiceRequest> SortDescending(IQueryable<ServiceRequest> query, RequestSortField sortBy)
+    {
+        switch (sortBy)
         {
-            return sorted.ThenBy(request => request.Id);
-        }
+            case RequestSortField.UpdatedAt:
+                return query.OrderByDescending(request => request.UpdatedAt).ThenByDescending(request => request.Id);
 
-        return sorted.ThenByDescending(request => request.Id);
+            case RequestSortField.Title:
+                return query.OrderByDescending(request => request.Title).ThenByDescending(request => request.Id);
+
+            case RequestSortField.OrganizationName:
+                return query.OrderByDescending(request => request.OrganizationName).ThenByDescending(request => request.Id);
+
+            case RequestSortField.Status:
+                return query.OrderByDescending(request => request.Status).ThenByDescending(request => request.Id);
+
+            case RequestSortField.Priority:
+                return query.OrderByDescending(request => request.Priority).ThenByDescending(request => request.Id);
+
+            case RequestSortField.CreatedAt:
+            default:
+                return query.OrderByDescending(request => request.CreatedAt).ThenByDescending(request => request.Id);
+        }
     }
 }

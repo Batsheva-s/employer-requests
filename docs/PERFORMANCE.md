@@ -55,10 +55,10 @@ ORDER BY COUNT(*) DESC, [r].[AssignedTo];
 
 | מה | איפה זה קורה | בקוד |
 |---|---|---|
-| סינון | `WHERE` | `Filter` ב-[`RequestRepository`](../src/EmployerRequests.Infrastructure/Repositories/RequestRepository.cs) |
-| מיון | `ORDER BY`, ‏`Id` שובר שוויון | `Sort` |
+| סינון | `WHERE` | `ApplyFilters` ב-[`RequestRepository`](../src/EmployerRequests.Infrastructure/Repositories/RequestRepository.cs) – מתודה קטנה לכל סינון |
+| מיון | `ORDER BY`, ‏`Id` שובר שוויון | `ApplySort` |
 | דפדוף | `OFFSET / FETCH` – רק 20 שורות | `Skip` / `Take` ב-`SearchAsync` |
-| עמודות | רק מה שה-DTO צריך | `Select(request => new RequestListItemDto(...))` בתוך השאילתה ([`RequestRepository`](../src/EmployerRequests.Infrastructure/Repositories/RequestRepository.cs)) |
+| עמודות | רק מה שה-DTO צריך | `Select(request => new RequestListItemDto { Id = request.Id, ... })` בתוך השאילתה |
 | סיכום | `GROUP BY` | `CountByStatusAndPriorityAsync`, ‏`GetTopAssigneesAsync` |
 | ביטול | `CancellationToken` עד SQL Server | כל מתודה אסינכרונית מקבלת אותו |
 

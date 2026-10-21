@@ -143,12 +143,7 @@ public class RequestServiceTests
     /// <summary>Puts a summary in the cache, as the first read of the unfiltered summary does.</summary>
     private void FillSummaryCache()
     {
-        var emptySummary = new RequestsSummaryDto(
-            0,
-            new List<StatusCountDto>(),
-            new List<PriorityCountDto>(),
-            new List<AssigneeWorkloadDto>(),
-            DateTimeOffset.UtcNow);
+        var emptySummary = new RequestsSummaryDto { TotalCount = 0, CalculatedAt = DateTimeOffset.UtcNow };
 
         _summaryCache.Set(emptySummary, _summaryCache.GetVersion());
         Assert.NotNull(_summaryCache.Get());

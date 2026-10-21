@@ -13,16 +13,18 @@ public static class RequestMapper
     /// <summary>A loaded request → its details, with the statuses the workflow allows next.</summary>
     public static RequestDetailsDto ToDetails(ServiceRequest request)
     {
-        return new RequestDetailsDto(
-            request.Id,
-            request.Title,
-            request.OrganizationName,
-            request.Status,
-            request.Priority,
-            request.AssignedTo,
-            request.CreatedAt,
-            request.UpdatedAt,
-            request.RowVersion,
-            StatusWorkflow.NextStatuses(request.Status));
+        return new RequestDetailsDto
+        {
+            Id = request.Id,
+            Title = request.Title,
+            OrganizationName = request.OrganizationName,
+            Status = request.Status,
+            Priority = request.Priority,
+            AssignedTo = request.AssignedTo,
+            CreatedAt = request.CreatedAt,
+            UpdatedAt = request.UpdatedAt,
+            RowVersion = request.RowVersion,
+            AllowedNextStatuses = StatusWorkflow.NextStatuses(request.Status)
+        };
     }
 }

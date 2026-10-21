@@ -48,11 +48,6 @@ public class SummaryCacheTests
 
     private static RequestsSummaryDto Summary(int totalCount)
     {
-        return new RequestsSummaryDto(
-            totalCount,
-            new List<StatusCountDto>(),
-            new List<PriorityCountDto>(),
-            new List<AssigneeWorkloadDto>(),
-            DateTimeOffset.UtcNow);
+        return new RequestsSummaryDto { TotalCount = totalCount, CalculatedAt = DateTimeOffset.UtcNow };
     }
 }

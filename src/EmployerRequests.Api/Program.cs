@@ -60,6 +60,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         // newer servers run it just as well.
         sqlServer.UseCompatibilityLevel(130);
 
+        // A list of values in a query (?status=New&status=Waiting) is written into the SQL itself: Status IN (1, 3).
+        // So SQL Server knows exactly which values it looks for and can use the index. (By default, EF Core 9 sends
+        // the list as one JSON parameter, and SQL Server has to guess how many rows will match.)
+        sqlServer.TranslateParameterizedCollectionsToConstants();
+
         // A database error that passes by itself – a dropped connection, a deadlock – is tried again up to 3 times,
         // a moment apart, before it becomes a 500. Conflicts and invalid requests are never "transient": no retry.
         sqlServer.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(2), errorNumbersToAdd: null);
