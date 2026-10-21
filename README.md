@@ -132,7 +132,7 @@ src/
     Interfaces/                                IRequestService, ‏IRequestRepository
     Services/RequestService.cs                 כל הפעולות על פניות: חיפוש, פרטים, היסטוריה, סיכום, עדכון סטטוס, עדכון מרוכז
     Services/SummaryCache.cs                   ה-Cache של הסיכום
-    Mapping/RequestMapper.cs                   ישות ← DTO, במקום אחד
+    Mapping/RequestMapper.cs                   ישות ← DTO של פרטי פנייה (הרשימה וההיסטוריה ממופות בתוך השאילתות)
     Exceptions/                                NotFoundException, ‏ConcurrencyConflictException
   EmployerRequests.Domain/                   הישויות וכללי העסק – בלי תלות בשום ספרייה
     ServiceRequest.cs                          הפנייה; הסטטוס משתנה רק דרך ChangeStatus
@@ -328,7 +328,7 @@ dotnet ef migrations add <Name> --project src/EmployerRequests.Infrastructure --
 1. **Cache מבוזר** – Redis דרך `IDistributedCache`: עותק אחד לכל המופעים, והניקוי הוא מחיקת המפתח – כולם רואים אותו מיד. המחיר: קריאת רשת וסריאליזציה בכל קריאה.
 2. **Cache מקומי והודעת ניקוי** – כל מופע שומר עותק בזיכרון, ושינוי מפרסם הודעת ניקוי (Redis Pub/Sub או Message Bus) שכל המופעים מאזינים לה. קריאה מהירה כמו היום, עם עיכוב קטן עד שההודעה מגיעה.
 
-בשתי הדרכים משתנה רק `SummaryCache` – מאחורי אותן שתי מתודות, `GetOrCalculateAsync` ו-`Invalidate`. ‏`RequestService` לא משתנה.
+בשתי הדרכים משתנה רק `SummaryCache` – מאחורי אותן מתודות: `Get`, ‏`GetVersion`, ‏`Set` ו-`Invalidate`. ‏`RequestService` לא משתנה.
 
 ## הלקוח – Angular
 
@@ -338,12 +338,12 @@ client/src/app/
     requests-page/              המסך: מחבר את שירות המצב לרכיבים; פתיחת הפרטים; עדכון מרוכז
     request-filters/            טופס הסינון (Debounce)
     requests-table/             הטבלה: מיון ובחירה
-    requests-summary/           הנתונים המסכמים
+    requests-summary/           מציג את הנתונים המסכמים
     request-details-dialog/     פרטים, עדכון סטטוס, טיפול ב-409, היסטוריה
     bulk-status-bar/            סרגל העדכון המרוכז
   services/
     requests-api.service.ts     קריאות ה-HTTP – מתודה לכל Endpoint, בלי מצב
-    requests-state.service.ts   מצב המסך וצינור החיפוש (switchMap)
+    requests-state.service.ts   מצב המסך: טוען את הרשימה ואת הסיכום (switchMap)
     current-user.service.ts     שם המשתמש שנרשם בהיסטוריה
   models/request.models.ts      הטיפוסים – תואמים ל-DTOs של השרת
   interceptors/                 מוסיף את שם המשתמש לכל קריאה ל-API
@@ -351,10 +351,10 @@ client/src/app/
   utils/                        הודעות שגיאה בעברית, תוויות, תרגום ה-Paginator
 ```
 
-* **הפרדת אחריות.** כל פנייה לשרת עוברת דרך [`RequestsApiService`](client/src/app/services/requests-api.service.ts) – מתודה לכל Endpoint, בלי מצב. מצב הרשימה (סינון, דפדוף, מיון, בחירה) נמצא ב-[`RequestsStateService`](client/src/app/services/requests-state.service.ts), עם Signals. רכיבי התצוגה – הסינון, הטבלה וסרגל העדכון המרוכז – רק מציגים ומדווחים על פעולות (`input` / `output`). רכיב הסיכום וחלון הפרטים טוענים בעצמם את הנתונים שלהם, דרך אותו שירות.
+* **הפרדת אחריות.** כל פנייה לשרת עוברת דרך [`RequestsApiService`](client/src/app/services/requests-api.service.ts) – מתודה לכל Endpoint, בלי מצב. מצב המסך – סינון, דפדוף, מיון, בחירה, הרשימה והסיכום – נמצא ב-[`RequestsStateService`](client/src/app/services/requests-state.service.ts), עם Signals, והוא היחיד שמבקש מהשרת את הרשימה ואת הסיכום. רכיבי התצוגה – הסינון, הטבלה, הסיכום וסרגל העדכון המרוכז – רק מציגים ומדווחים על פעולות (`input` / `output`). חלון הפרטים טוען בעצמו את הפנייה ואת ההיסטוריה שלה.
 * **הכול בצד השרת.** הלקוח לא מסנן, לא ממיין ולא מדפדף. כל שינוי בשאילתה מבקש עמוד אחד.
 * **Debounce.** הטופס מחכה 300ms אחרי ההקשה האחרונה, ואז שולח את הסינון – פעם אחת, ורק אם הוא השתנה (`distinctUntilChanged`).
-* **ביטול בקשות.** שירות המצב מעביר כל שאילתה דרך `switchMap`: שאילתה חדשה מבטלת את הקודמת שעוד בדרך. הדפדפן מבטל את קריאת ה-HTTP, ה-`CancellationToken` בשרת מבטל את השאילתה ב-SQL Server, ותשובה ישנה לעולם לא דורסת תשובה חדשה.
+* **ביטול בקשות.** שירות המצב מעביר כל חיפוש – וכל טעינה של הסיכום – דרך `switchMap`: בקשה חדשה מבטלת את הקודמת שעוד בדרך. הדפדפן מבטל את קריאת ה-HTTP, ה-`CancellationToken` בשרת מבטל את השאילתה ב-SQL Server, ותשובה ישנה לעולם לא דורסת תשובה חדשה.
 * **מצבים.** טעינה – פס התקדמות מעל התוצאות הקודמות. אין תוצאות – הודעה. שגיאה – הודעה בעברית וכפתור לניסיון חוזר.
 * **409.** חלון הפרטים מסביר וטוען את המצב העדכני; תוצאת העדכון המרוכז מפרטת כל פנייה שלא עודכנה, ואת הסיבה.
 * **שגיאות.** תשובת Problem Details הופכת להודעה בעברית במקום אחד: [`http-errors.ts`](client/src/app/utils/http-errors.ts).

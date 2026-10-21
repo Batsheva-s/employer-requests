@@ -58,7 +58,7 @@ ORDER BY COUNT(*) DESC, [r].[AssignedTo];
 | סינון | `WHERE` | `Filter` ב-[`RequestRepository`](../src/EmployerRequests.Infrastructure/Repositories/RequestRepository.cs) |
 | מיון | `ORDER BY`, ‏`Id` שובר שוויון | `Sort` |
 | דפדוף | `OFFSET / FETCH` – רק 20 שורות | `Skip` / `Take` ב-`SearchAsync` |
-| עמודות | רק מה שה-DTO צריך | `Select(RequestMapper.ToListItem)` בתוך השאילתה ([`RequestMapper`](../src/EmployerRequests.Application/Mapping/RequestMapper.cs)) |
+| עמודות | רק מה שה-DTO צריך | `Select(request => new RequestListItemDto(...))` בתוך השאילתה ([`RequestRepository`](../src/EmployerRequests.Infrastructure/Repositories/RequestRepository.cs)) |
 | סיכום | `GROUP BY` | `CountByStatusAndPriorityAsync`, ‏`GetTopAssigneesAsync` |
 | ביטול | `CancellationToken` עד SQL Server | כל מתודה אסינכרונית מקבלת אותו |
 
