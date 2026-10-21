@@ -16,7 +16,8 @@ public class ServiceRequest
 
     private readonly List<RequestStatusChange> _statusChanges = new List<RequestStatusChange>();
 
-    // Required by EF Core to materialize rows.
+    // EF Core uses this constructor when it reads rows (it prefers the one with the fewest parameters),
+    // and then sets the properties from the columns.
     private ServiceRequest()
     {
     }

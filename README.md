@@ -319,7 +319,7 @@ dotnet ef migrations add <Name> --project src/EmployerRequests.Infrastructure --
 | **תפוגה** | מוחלטת, 60 שניות (`SummaryCache.Expiration`). זה החסם העליון ליישון במקרה של שינוי שלא עבר דרך ה-API הזה |
 | **ניקוי** | מיד אחרי כל שינוי סטטוס שנשמר – גם באמצע עדכון מרוכז, כך שתקלה בפנייה הבאה לא משאירה סיכום ישן. הקריאה הבאה מחשבת מחדש, והמשתמש רואה את השינוי שלו |
 | **מרוץ** | חישוב שהתחיל לפני שינוי והסתיים אחריו היה שומר נתונים ישנים. מונה גרסאות שעולה בכל ניקוי: התוצאה נשמרת רק אם לא היה ניקוי בזמן החישוב (נבדק בבדיקת יחידה) |
-| **מה לא נשמר** | סיכומים עם סינון: יש אינסוף צירופים, ולכן סיכוי קטן לפגיעה, והשאילתות שלהם מצומצמות יותר |
+| **מה לא נשמר** | סיכומים עם סינון: יש אינסוף צירופים, ולכן סיכוי קטן שאותו צירוף יתבקש שוב. רובם נשענים על אינדקס; חיפוש חופשי סורק את כל הטבלה ([`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)) |
 
 הקוד: [`SummaryCache`](src/EmployerRequests.Application/Services/SummaryCache.cs) שומר ומנקה, ו-[`RequestService`](src/EmployerRequests.Application/Services/RequestService.cs) מחליט מתי להשתמש בו (`GetSummaryAsync`) ומנקה אותו אחרי כל שמירה (`ApplyStatusChangeAsync`).
 

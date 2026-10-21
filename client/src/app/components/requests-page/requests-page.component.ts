@@ -43,7 +43,7 @@ export class RequestsPageComponent {
   protected readonly bulkResult = signal<BulkChangeStatusResult | null>(null);
   protected readonly bulkError = signal<string | null>(null);
 
-  /** "עודכנו 3 פניות. לא עודכנה פנייה אחת:" */
+  /** "עודכנו 3 פניות. לא עודכנה פנייה אחת:" – one request takes the singular verb. */
   protected readonly bulkSummary = computed(() => {
     const result = this.bulkResult();
     if (result === null) {
@@ -53,11 +53,15 @@ export class RequestsPageComponent {
     let text = '';
     if (result.succeeded === 0) {
       text = 'לא עודכנה אף פנייה.';
+    } else if (result.succeeded === 1) {
+      text = 'עודכנה פנייה אחת.';
     } else {
       text = `עודכנו ${requestsCount(result.succeeded)}.`;
     }
 
-    if (result.failed > 0) {
+    if (result.failed === 1) {
+      text += ' לא עודכנה פנייה אחת:';
+    } else if (result.failed > 1) {
       text += ` לא עודכנו ${requestsCount(result.failed)}:`;
     }
     return text;

@@ -5,7 +5,8 @@ using EmployerRequests.Domain;
 namespace EmployerRequests.UnitTests.DTOs;
 
 /// <summary>
-/// The validation rules of the DTOs, checked the way ASP.NET Core checks them before an action runs.
+/// The validation rules of the DTOs, checked with Validator: the attributes first, then Validate() – the same order
+/// as ASP.NET Core. (Validator does not go into nested objects, such as each item of a bulk change; ASP.NET Core does.)
 /// The integration tests check that a broken rule really answers 400.
 /// </summary>
 public class ValidationTests
@@ -30,7 +31,7 @@ public class ValidationTests
     [Fact]
     public void An_unknown_status_value_is_rejected()
     {
-        // 99 is not one of the enum's values. (Through HTTP, model binding already answers ?status=99 with 400.)
+        // 99 is not one of the enum's values. (Through HTTP, ?status=99 already fails model binding, and the answer is 400.)
         var errors = Validate(new RequestSearchDto { Status = new[] { RequestStatus.New, (RequestStatus)99 } });
 
         Assert.Contains(errors, error => error.MemberNames.Contains(nameof(RequestFilterDto.Status)));

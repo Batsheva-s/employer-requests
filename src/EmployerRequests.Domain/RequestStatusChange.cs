@@ -8,7 +8,8 @@ public class RequestStatusChange
 {
     public const int ChangedByMaxLength = 100;
 
-    // Required by EF Core to materialize rows.
+    // EF Core uses this constructor when it reads rows (it prefers the one with the fewest parameters),
+    // and then sets the properties from the columns.
     private RequestStatusChange()
     {
     }

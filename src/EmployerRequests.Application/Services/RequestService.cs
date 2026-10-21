@@ -61,15 +61,16 @@ public class RequestService : IRequestService
 
     public async Task<RequestsSummaryDto> GetSummaryAsync(RequestFilterDto filter, CancellationToken cancellationToken)
     {
-        // Filtered summaries read fewer rows, use the indexes and come in endless combinations:
-        // they are calculated on every call.
+        // Filtered summaries come in endless combinations, so the same one is rarely asked for again:
+        // they are calculated on every call. (Most of them use an index; free-text search reads the whole table –
+        // docs/PERFORMANCE.md.)
         if (filter.HasFilters())
         {
             return await CalculateSummaryAsync(filter, cancellationToken);
         }
 
-        // The unfiltered summary is the first screen every user sees, the same for everyone, and the most
-        // expensive one (it reads all the requests): it is cached.
+        // The unfiltered summary is the first screen every user sees, it is the same for everyone, and it reads
+        // all the requests (two GROUP BY queries): it is cached.
         var cached = _summaryCache.Get();
         if (cached != null)
         {

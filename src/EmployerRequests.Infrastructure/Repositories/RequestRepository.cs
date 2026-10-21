@@ -266,8 +266,8 @@ public class RequestRepository : IRequestRepository
                 break;
         }
 
-        // Many requests share a status or a priority. Id breaks the ties, so the order is always the same
-        // and a row never appears on two pages or on none.
+        // Many requests share a status or a priority. Id breaks the ties, so the order is always the same: while the
+        // data does not change between the requests, a row never appears on two pages or on none.
         if (ascending)
         {
             return sorted.ThenBy(request => request.Id);
