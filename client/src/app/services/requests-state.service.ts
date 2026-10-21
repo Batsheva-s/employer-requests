@@ -67,50 +67,25 @@ export class RequestsStateService {
   readonly selectedIds = computed(() => new Set(this.selection().keys()));
 
   constructor() {
-    // The list. switchMap: when a new search starts while the previous one is still on its way, the previous one
-    // is cancelled – the browser aborts its HTTP call and the server stops its database query. So an old, slow
-    // answer can never replace a newer one.
+    // Every search goes through one pipe:
+    // - switchMap: when a new search starts while the previous one is still on its way, the previous one is
+    //   cancelled – the browser aborts its HTTP call, and the server stops its database query. So an old, slow
+    //   answer can never replace a newer one.
+    // - takeUntilDestroyed: the pipe closes when the page (which provides this service) is destroyed.
     this.searches
       .pipe(
-        switchMap((query) =>
-          this.api.search(query).pipe(
-            // A failed search ends only itself; the stream stays open for the next search.
-            catchError((error: unknown) => {
-              this.errorMessage.set(describeHttpError(error));
-              return of(null);
-            }),
-          ),
-        ),
-        // Stops listening when the page (which provides this service) is destroyed.
+        switchMap((query) => this.askServerForPage(query)),
         takeUntilDestroyed(),
       )
-      .subscribe((result) => {
-        this.loading.set(false);
-        if (result !== null) {
-          this.result.set(result);
-          this.refreshSelectedVersions(result.items);
-        }
-      });
+      .subscribe((page) => this.showPage(page));
 
-    // The summary, the same way.
+    // The summary goes through a pipe of its own, built the same way.
     this.summaryLoads
       .pipe(
-        switchMap((filters) =>
-          this.api.getSummary(filters).pipe(
-            catchError((error: unknown) => {
-              this.summaryError.set(describeHttpError(error));
-              return of(null);
-            }),
-          ),
-        ),
+        switchMap((filters) => this.askServerForSummary(filters)),
         takeUntilDestroyed(),
       )
-      .subscribe((summary) => {
-        this.summaryLoading.set(false);
-        if (summary !== null) {
-          this.summary.set(summary);
-        }
-      });
+      .subscribe((summary) => this.showSummary(summary));
 
     // The first screen. (Only now: a Subject passes a value only to those already subscribed above.)
     this.search();
@@ -182,6 +157,48 @@ export class RequestsStateService {
     this.summaryError.set(null);
     // The query holds the filters (with paging and sorting, which the summary ignores).
     this.summaryLoads.next(this.query());
+  }
+
+  // ---------- Talking to the server ----------
+
+  /** One page from the server. If the call fails, the error message is set and null comes back instead. */
+  private askServerForPage(query: RequestQuery): Observable<PagedResult<RequestListItem> | null> {
+    return this.api.search(query).pipe(
+      // A failed call ends only itself; the pipe stays open for the next search.
+      catchError((error: unknown) => {
+        this.errorMessage.set(describeHttpError(error));
+        return of(null);
+      }),
+    );
+  }
+
+  private showPage(page: PagedResult<RequestListItem> | null): void {
+    this.loading.set(false);
+    if (page === null) {
+      return; // the call failed, and errorMessage is already set
+    }
+
+    this.result.set(page);
+    this.refreshSelectedVersions(page.items);
+  }
+
+  /** The summary from the server – the same as askServerForPage, for the summary. */
+  private askServerForSummary(filters: RequestFilters): Observable<RequestsSummary | null> {
+    return this.api.getSummary(filters).pipe(
+      catchError((error: unknown) => {
+        this.summaryError.set(describeHttpError(error));
+        return of(null);
+      }),
+    );
+  }
+
+  private showSummary(summary: RequestsSummary | null): void {
+    this.summaryLoading.set(false);
+    if (summary === null) {
+      return; // the call failed, and summaryError is already set
+    }
+
+    this.summary.set(summary);
   }
 
   // ---------- Selection and bulk change ----------
