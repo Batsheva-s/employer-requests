@@ -36,8 +36,8 @@ public class RequestFilterDto : IValidatableObject
     /// <summary>False for the default, unfiltered view – the only view whose summary is cached.</summary>
     public bool HasFilters() =>
         !string.IsNullOrWhiteSpace(Search)
-        || Status is { Length: > 0 }
-        || Priority is { Length: > 0 }
+        || (Status != null && Status.Length > 0)
+        || (Priority != null && Priority.Length > 0)
         || !string.IsNullOrWhiteSpace(OrganizationName)
         || !string.IsNullOrWhiteSpace(AssignedTo)
         || CreatedFrom is not null
