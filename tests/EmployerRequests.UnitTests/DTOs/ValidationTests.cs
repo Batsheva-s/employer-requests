@@ -10,7 +10,7 @@ namespace EmployerRequests.UnitTests.DTOs;
 /// </summary>
 public class ValidationTests
 {
-    private static readonly byte[] AnyVersion = [0, 0, 0, 0, 0, 0, 7, 209];
+    private static readonly byte[] AnyVersion = new byte[] { 0, 0, 0, 0, 0, 0, 7, 209 };
 
     [Fact]
     public void The_default_search_is_valid()
@@ -30,7 +30,8 @@ public class ValidationTests
     [Fact]
     public void An_unknown_status_value_is_rejected()
     {
-        var errors = Validate(new RequestSearchDto { Status = [RequestStatus.New, (RequestStatus)99] });
+        // 99 is not one of the enum's values – what "?status=99" in the query string produces.
+        var errors = Validate(new RequestSearchDto { Status = new[] { RequestStatus.New, (RequestStatus)99 } });
 
         Assert.Contains(errors, error => error.MemberNames.Contains(nameof(RequestFilterDto.Status)));
     }
@@ -54,11 +55,13 @@ public class ValidationTests
     [Fact]
     public void A_bulk_change_of_more_than_100_requests_is_rejected()
     {
-        var bulkChange = new BulkChangeStatusDto
+        var items = new List<BulkChangeStatusItemDto>();
+        for (var id = 1; id <= 101; id++)
         {
-            Status = RequestStatus.InProgress,
-            Items = Enumerable.Range(1, 101).Select(id => new BulkChangeStatusItemDto { Id = id, RowVersion = AnyVersion }).ToList()
-        };
+            items.Add(new BulkChangeStatusItemDto { Id = id, RowVersion = AnyVersion });
+        }
+
+        var bulkChange = new BulkChangeStatusDto { Status = RequestStatus.InProgress, Items = items };
 
         Assert.NotEmpty(Validate(bulkChange));
     }
@@ -69,11 +72,11 @@ public class ValidationTests
         var bulkChange = new BulkChangeStatusDto
         {
             Status = RequestStatus.InProgress,
-            Items =
-            [
+            Items = new List<BulkChangeStatusItemDto>
+            {
                 new BulkChangeStatusItemDto { Id = 7, RowVersion = AnyVersion },
                 new BulkChangeStatusItemDto { Id = 7, RowVersion = AnyVersion }
-            ]
+            }
         };
 
         Assert.NotEmpty(Validate(bulkChange));
@@ -82,15 +85,17 @@ public class ValidationTests
     [Fact]
     public void A_version_that_is_not_8_bytes_is_rejected()
     {
-        var change = new ChangeStatusDto { Status = RequestStatus.InProgress, RowVersion = [1, 2, 3] };
+        var change = new ChangeStatusDto { Status = RequestStatus.InProgress, RowVersion = new byte[] { 1, 2, 3 } };
 
         Assert.NotEmpty(Validate(change));
     }
 
+    /// <summary>Runs the attributes and then Validate(), as ASP.NET Core does, and returns the errors.</summary>
     private static List<ValidationResult> Validate(object model)
     {
-        var results = new List<ValidationResult>();
-        Validator.TryValidateObject(model, new ValidationContext(model), results, validateAllProperties: true);
-        return results;
+        var errors = new List<ValidationResult>();
+        var context = new ValidationContext(model);
+        Validator.TryValidateObject(model, context, errors, validateAllProperties: true);
+        return errors;
     }
 }

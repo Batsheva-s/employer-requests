@@ -8,10 +8,10 @@ namespace EmployerRequests.Application.Services;
 /// <list type="bullet">
 /// <item><b>Expiration:</b> 60 seconds at most.</item>
 /// <item><b>Invalidation:</b> every saved status change calls <see cref="Invalidate"/>, so the next read is fresh.</item>
-/// <item><b>Race:</b> a summary that was being calculated while a status change was saved may already be outdated.
-/// It is returned to its caller but not kept – otherwise it would be served for a whole minute.</item>
+/// <item><b>Race:</b> a summary that was being calculated while a status change was saved may already be outdated,
+/// so <see cref="Set"/> does not keep it – otherwise it would be served for a whole minute.</item>
 /// </list>
-/// Registered as a singleton: the cached value and the version counter belong to the whole application,
+/// Registered as a singleton: the cached value and the version belong to the whole application,
 /// not to one HTTP request.
 /// </summary>
 public class SummaryCache
@@ -21,9 +21,11 @@ public class SummaryCache
     private const string CacheKey = "requests-summary";
 
     private readonly IMemoryCache _cache;
-    private readonly object _lock = new();
 
-    // Goes up by one on every invalidation. Read and written only inside the lock.
+    // Many requests run at the same time, so _version is read and written only inside lock (_lock).
+    private readonly object _lock = new object();
+
+    // Goes up by one on every invalidation.
     private long _version;
 
     public SummaryCache(IMemoryCache cache)
@@ -31,34 +33,39 @@ public class SummaryCache
         _cache = cache;
     }
 
-    /// <summary>Returns the cached summary, or calculates it with <paramref name="calculate"/> and keeps it.</summary>
-    public async Task<RequestsSummaryDto> GetOrCalculateAsync(
-        Func<CancellationToken, Task<RequestsSummaryDto>> calculate,
-        CancellationToken cancellationToken)
+    /// <summary>The cached summary, or null if there is none.</summary>
+    public RequestsSummaryDto? Get()
     {
-        if (_cache.TryGetValue(CacheKey, out RequestsSummaryDto? cached) && cached is not null)
+        if (_cache.TryGetValue(CacheKey, out RequestsSummaryDto? summary))
         {
-            return cached;
+            return summary;
         }
 
-        long versionBeforeCalculation;
+        return null;
+    }
+
+    /// <summary>The current version. Read it before calculating a summary, and pass it to <see cref="Set"/>.</summary>
+    public long GetVersion()
+    {
         lock (_lock)
         {
-            versionBeforeCalculation = _version;
+            return _version;
         }
+    }
 
-        var summary = await calculate(cancellationToken);
-
+    /// <summary>
+    /// Keeps <paramref name="summary"/> – but only if no status change was saved since
+    /// <paramref name="versionBeforeCalculation"/> was read.
+    /// </summary>
+    public void Set(RequestsSummaryDto summary, long versionBeforeCalculation)
+    {
         lock (_lock)
         {
-            // Keep the result only if no status change was saved while it was being calculated.
             if (_version == versionBeforeCalculation)
             {
                 _cache.Set(CacheKey, summary, Expiration);
             }
         }
-
-        return summary;
     }
 
     /// <summary>Removes the cached summary. Called after every saved status change.</summary>

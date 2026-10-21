@@ -30,13 +30,19 @@ public class RequestService : IRequestService
 
     // ---------- Reading ----------
 
-    public Task<PagedResultDto<RequestListItemDto>> SearchAsync(RequestSearchDto search, CancellationToken cancellationToken) =>
-        _repository.SearchAsync(search, cancellationToken);
+    public async Task<PagedResultDto<RequestListItemDto>> SearchAsync(RequestSearchDto search, CancellationToken cancellationToken)
+    {
+        // Filtering, sorting and paging all run in the database.
+        return await _repository.SearchAsync(search, cancellationToken);
+    }
 
     public async Task<RequestDetailsDto> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
-        var request = await _repository.GetByIdAsync(id, cancellationToken)
-            ?? throw new NotFoundException(id);
+        var request = await _repository.GetByIdAsync(id, cancellationToken);
+        if (request == null)
+        {
+            throw new NotFoundException(id);
+        }
 
         return RequestMapper.ToDetails(request);
     }
@@ -44,7 +50,8 @@ public class RequestService : IRequestService
     public async Task<IReadOnlyList<RequestStatusChangeDto>> GetHistoryAsync(int id, CancellationToken cancellationToken)
     {
         // An empty history is a valid answer for an existing request, so existence is checked on its own.
-        if (!await _repository.ExistsAsync(id, cancellationToken))
+        var exists = await _repository.ExistsAsync(id, cancellationToken);
+        if (!exists)
         {
             throw new NotFoundException(id);
         }
@@ -52,14 +59,29 @@ public class RequestService : IRequestService
         return await _repository.GetHistoryAsync(id, cancellationToken);
     }
 
-    public Task<RequestsSummaryDto> GetSummaryAsync(RequestFilterDto filter, CancellationToken cancellationToken)
+    public async Task<RequestsSummaryDto> GetSummaryAsync(RequestFilterDto filter, CancellationToken cancellationToken)
     {
+        // Filtered summaries read fewer rows, use the indexes and come in endless combinations:
+        // they are calculated on every call.
+        if (filter.HasFilters())
+        {
+            return await CalculateSummaryAsync(filter, cancellationToken);
+        }
+
         // The unfiltered summary is the first screen every user sees, the same for everyone, and the most
-        // expensive one (it reads all the requests) – so it is cached. Filtered summaries read fewer rows,
-        // use the indexes and come in endless combinations – so they are calculated on every call.
-        return filter.HasFilters()
-            ? CalculateSummaryAsync(filter, cancellationToken)
-            : _summaryCache.GetOrCalculateAsync(token => CalculateSummaryAsync(filter, token), cancellationToken);
+        // expensive one (it reads all the requests): it is cached.
+        var cached = _summaryCache.Get();
+        if (cached != null)
+        {
+            return cached;
+        }
+
+        // Remember the version before calculating: if a status change is saved meanwhile, the result is not kept.
+        var versionBeforeCalculation = _summaryCache.GetVersion();
+        var summary = await CalculateSummaryAsync(filter, cancellationToken);
+        _summaryCache.Set(summary, versionBeforeCalculation);
+
+        return summary;
     }
 
     // ---------- Changing the status ----------
@@ -77,19 +99,26 @@ public class RequestService : IRequestService
     /// </summary>
     public async Task<BulkChangeStatusResultDto> ChangeStatusBulkAsync(BulkChangeStatusDto bulkChange, string changedBy, CancellationToken cancellationToken)
     {
-        var results = new List<BulkItemResultDto>(bulkChange.Items.Count);
+        var results = new List<BulkItemResultDto>();
+        var succeeded = 0;
 
         foreach (var item in bulkChange.Items)
         {
-            results.Add(await ChangeOneOfManyAsync(item, bulkChange.Status, changedBy, cancellationToken));
+            var result = await ChangeOneOfManyAsync(item, bulkChange.Status, changedBy, cancellationToken);
+            results.Add(result);
+
+            if (result.Outcome == BulkItemOutcome.Updated)
+            {
+                succeeded++;
+            }
         }
 
-        var succeeded = results.Count(result => result.Outcome == BulkItemOutcome.Updated);
+        var failed = results.Count - succeeded;
         _logger.LogInformation(
             "Bulk status change to {NewStatus}: {Succeeded} of {Requested} requests updated",
             bulkChange.Status, succeeded, results.Count);
 
-        return new BulkChangeStatusResultDto(results.Count, succeeded, results.Count - succeeded, results);
+        return new BulkChangeStatusResultDto(results.Count, succeeded, failed, results);
     }
 
     /// <summary>One request of a bulk change: the reason it was not updated, if any, becomes its outcome.</summary>
@@ -139,21 +168,27 @@ public class RequestService : IRequestService
         string changedBy,
         CancellationToken cancellationToken)
     {
-        var request = await _repository.GetForUpdateAsync(id, cancellationToken)
-            ?? throw new NotFoundException(id);
+        // 1. Load.
+        var request = await _repository.GetForUpdateAsync(id, cancellationToken);
+        if (request == null)
+        {
+            throw new NotFoundException(id);
+        }
 
-        // The user decided based on an older version: someone else has changed the request since.
+        // 2. The user decided based on an older version: someone else has changed the request since.
+        //    (SequenceEqual compares the two byte arrays value by value.)
         if (!request.RowVersion.SequenceEqual(versionSeenByUser))
         {
             throw new ConcurrencyConflictException(id);
         }
 
+        // 3. The entity checks the workflow and adds the history row.
         var previousStatus = request.Status;
         request.ChangeStatus(newStatus, changedBy, DateTimeOffset.UtcNow);
 
-        // EF Core sends "UPDATE ... WHERE Id = @id AND RowVersion = @versionLoadedInStep1", together with the
-        // INSERT of the history row, in one transaction. If another user saved between step 1 and now, no row
-        // matches, nothing is saved, and the repository throws ConcurrencyConflictException.
+        // 4. EF Core sends "UPDATE ... WHERE Id = @id AND RowVersion = @versionLoadedInStep1", together with the
+        //    INSERT of the history row, in one transaction. If another user saved between step 1 and now, no row
+        //    matches, nothing is saved, and the repository throws ConcurrencyConflictException.
         await _repository.SaveChangesAsync(cancellationToken);
 
         // Saved: the summary counts requests by status, so the cached numbers are outdated from this moment.
@@ -176,19 +211,24 @@ public class RequestService : IRequestService
         var counts = await _repository.CountByStatusAndPriorityAsync(filter, cancellationToken);
         var topAssignees = await _repository.GetTopAssigneesAsync(filter, TopAssigneesCount, cancellationToken);
 
-        var byStatus = Enum.GetValues<RequestStatus>()
-            .Select(status => new StatusCountDto(status, counts.Where(count => count.Status == status).Sum(count => count.Count)))
-            .ToList();
+        // Every status appears, with zero when there are no requests in it.
+        var byStatus = new List<StatusCountDto>();
+        foreach (var status in Enum.GetValues<RequestStatus>())
+        {
+            var countForStatus = counts.Where(count => count.Status == status).Sum(count => count.Count);
+            byStatus.Add(new StatusCountDto(status, countForStatus));
+        }
 
-        var byPriority = Enum.GetValues<RequestPriority>()
-            .Select(priority => new PriorityCountDto(priority, counts.Where(count => count.Priority == priority).Sum(count => count.Count)))
-            .ToList();
+        // The same for every priority.
+        var byPriority = new List<PriorityCountDto>();
+        foreach (var priority in Enum.GetValues<RequestPriority>())
+        {
+            var countForPriority = counts.Where(count => count.Priority == priority).Sum(count => count.Count);
+            byPriority.Add(new PriorityCountDto(priority, countForPriority));
+        }
 
-        return new RequestsSummaryDto(
-            TotalCount: counts.Sum(count => count.Count),
-            ByStatus: byStatus,
-            ByPriority: byPriority,
-            TopAssignees: topAssignees,
-            CalculatedAt: DateTimeOffset.UtcNow);
+        var totalCount = counts.Sum(count => count.Count);
+
+        return new RequestsSummaryDto(totalCount, byStatus, byPriority, topAssignees, DateTimeOffset.UtcNow);
     }
 }

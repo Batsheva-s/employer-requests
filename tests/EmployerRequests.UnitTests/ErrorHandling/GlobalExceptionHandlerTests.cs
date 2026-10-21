@@ -8,50 +8,52 @@ namespace EmployerRequests.UnitTests.ErrorHandling;
 
 public class GlobalExceptionHandlerTests
 {
+    // xUnit creates a new instance of this class for every test, so every test starts with fresh objects.
+    private readonly RecordingProblemDetailsService _written = new RecordingProblemDetailsService();
+    private readonly GlobalExceptionHandler _handler;
+
+    public GlobalExceptionHandlerTests()
+    {
+        _handler = new GlobalExceptionHandler(_written, NullLogger<GlobalExceptionHandler>.Instance);
+    }
+
     [Fact]
     public async Task A_conflict_is_answered_409_with_problem_details()
     {
-        var (handler, written) = CreateHandler();
         var context = new DefaultHttpContext();
 
-        var handled = await handler.TryHandleAsync(context, new ConcurrencyConflictException(7), CancellationToken.None);
+        var handled = await _handler.TryHandleAsync(context, new ConcurrencyConflictException(7), CancellationToken.None);
 
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
-        Assert.Equal(StatusCodes.Status409Conflict, written.Problem?.Status);
+        Assert.NotNull(_written.Problem);
+        Assert.Equal(StatusCodes.Status409Conflict, _written.Problem.Status);
     }
 
     [Fact]
     public async Task An_unexpected_error_is_answered_500_without_its_internal_details()
     {
-        var (handler, written) = CreateHandler();
         var context = new DefaultHttpContext();
 
-        await handler.TryHandleAsync(context, new InvalidOperationException("Login failed for user 'sa'"), CancellationToken.None);
+        await _handler.TryHandleAsync(context, new InvalidOperationException("Login failed for user 'sa'"), CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
-        Assert.NotNull(written.Problem);
-        Assert.DoesNotContain("Login failed", written.Problem.Detail);
+        Assert.NotNull(_written.Problem);
+        Assert.DoesNotContain("Login failed", _written.Problem.Detail);
     }
 
     [Fact]
     public async Task An_error_after_the_client_went_away_is_not_reported_as_a_server_error()
     {
         // A query stopped in the middle by the CancellationToken can surface as an ordinary database error.
-        var (handler, written) = CreateHandler();
-        var context = new DefaultHttpContext { RequestAborted = new CancellationToken(canceled: true) };
+        var context = new DefaultHttpContext();
+        context.RequestAborted = new CancellationToken(canceled: true);
 
-        var handled = await handler.TryHandleAsync(context, new InvalidOperationException("Operation cancelled by user."), CancellationToken.None);
+        var handled = await _handler.TryHandleAsync(context, new InvalidOperationException("Operation cancelled by user."), CancellationToken.None);
 
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status499ClientClosedRequest, context.Response.StatusCode);
-        Assert.Null(written.Problem); // nobody is listening: no body is written
-    }
-
-    private static (GlobalExceptionHandler Handler, RecordingProblemDetailsService Written) CreateHandler()
-    {
-        var written = new RecordingProblemDetailsService();
-        return (new GlobalExceptionHandler(written, NullLogger<GlobalExceptionHandler>.Instance), written);
+        Assert.Null(_written.Problem); // nobody is listening: no body is written
     }
 
     /// <summary>Keeps the Problem Details the handler writes, instead of writing them to a response.</summary>

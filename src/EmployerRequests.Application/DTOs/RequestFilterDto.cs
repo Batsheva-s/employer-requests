@@ -34,34 +34,43 @@ public class RequestFilterDto : IValidatableObject
     public DateTimeOffset? CreatedTo { get; set; }
 
     /// <summary>False for the default, unfiltered view – the only view whose summary is cached.</summary>
-    public bool HasFilters() =>
-        !string.IsNullOrWhiteSpace(Search)
-        || (Status != null && Status.Length > 0)
-        || (Priority != null && Priority.Length > 0)
-        || !string.IsNullOrWhiteSpace(OrganizationName)
-        || !string.IsNullOrWhiteSpace(AssignedTo)
-        || CreatedFrom is not null
-        || CreatedTo is not null;
+    public bool HasFilters()
+    {
+        return !string.IsNullOrWhiteSpace(Search)
+            || (Status != null && Status.Length > 0)
+            || (Priority != null && Priority.Length > 0)
+            || !string.IsNullOrWhiteSpace(OrganizationName)
+            || !string.IsNullOrWhiteSpace(AssignedTo)
+            || CreatedFrom != null
+            || CreatedTo != null;
+    }
 
-    /// <summary>The rules that attributes cannot express. ASP.NET Core runs them before the action, like the attributes.</summary>
+    /// <summary>
+    /// The rules that attributes cannot express. ASP.NET Core runs them before the action, like the attributes,
+    /// and answers 400 with every error found.
+    /// </summary>
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
+        var errors = new List<ValidationResult>();
+
         // The query string binder also accepts numbers (?status=99), so every value is checked against the enum.
-        if (Status?.Any(status => !Enum.IsDefined(status)) == true)
+        if (Status != null && Status.Any(status => !Enum.IsDefined(status)))
         {
-            yield return new ValidationResult("Unknown status.", [nameof(Status)]);
+            errors.Add(new ValidationResult("Unknown status.", new[] { nameof(Status) }));
         }
 
-        if (Priority?.Any(priority => !Enum.IsDefined(priority)) == true)
+        if (Priority != null && Priority.Any(priority => !Enum.IsDefined(priority)))
         {
-            yield return new ValidationResult("Unknown priority.", [nameof(Priority)]);
+            errors.Add(new ValidationResult("Unknown priority.", new[] { nameof(Priority) }));
         }
 
-        if (CreatedFrom >= CreatedTo)
+        if (CreatedFrom != null && CreatedTo != null && CreatedFrom.Value >= CreatedTo.Value)
         {
-            yield return new ValidationResult(
+            errors.Add(new ValidationResult(
                 "CreatedFrom must be earlier than CreatedTo.",
-                [nameof(CreatedFrom), nameof(CreatedTo)]);
+                new[] { nameof(CreatedFrom), nameof(CreatedTo) }));
         }
+
+        return errors;
     }
 }

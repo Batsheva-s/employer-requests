@@ -40,7 +40,8 @@ public class RequestsController : ControllerBase
         [FromQuery] RequestSearchDto query,
         CancellationToken cancellationToken)
     {
-        return Ok(await _requestService.SearchAsync(query, cancellationToken));
+        var page = await _requestService.SearchAsync(query, cancellationToken);
+        return Ok(page);
     }
 
     /// <summary>Counts for the same filters as the search: by status, by priority, and the busiest handlers.</summary>
@@ -51,7 +52,8 @@ public class RequestsController : ControllerBase
         [FromQuery] RequestFilterDto filter,
         CancellationToken cancellationToken)
     {
-        return Ok(await _requestService.GetSummaryAsync(filter, cancellationToken));
+        var summary = await _requestService.GetSummaryAsync(filter, cancellationToken);
+        return Ok(summary);
     }
 
     /// <summary>One request, with its current version and the statuses it may move to.</summary>
@@ -60,7 +62,8 @@ public class RequestsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<RequestDetailsDto>> GetById(int id, CancellationToken cancellationToken)
     {
-        return Ok(await _requestService.GetByIdAsync(id, cancellationToken));
+        var request = await _requestService.GetByIdAsync(id, cancellationToken);
+        return Ok(request);
     }
 
     /// <summary>The status history of a request, newest first.</summary>
@@ -69,7 +72,8 @@ public class RequestsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<IReadOnlyList<RequestStatusChangeDto>>> GetHistory(int id, CancellationToken cancellationToken)
     {
-        return Ok(await _requestService.GetHistoryAsync(id, cancellationToken));
+        var history = await _requestService.GetHistoryAsync(id, cancellationToken);
+        return Ok(history);
     }
 
     /// <summary>
@@ -88,7 +92,9 @@ public class RequestsController : ControllerBase
         [FromHeader(Name = UserNameHeader)] string? userName,
         CancellationToken cancellationToken)
     {
-        return Ok(await _requestService.ChangeStatusAsync(id, change, ToChangedBy(userName), cancellationToken));
+        var changedBy = ToChangedBy(userName);
+        var request = await _requestService.ChangeStatusAsync(id, change, changedBy, cancellationToken);
+        return Ok(request);
     }
 
     /// <summary>
@@ -104,7 +110,9 @@ public class RequestsController : ControllerBase
         [FromHeader(Name = UserNameHeader)] string? userName,
         CancellationToken cancellationToken)
     {
-        return Ok(await _requestService.ChangeStatusBulkAsync(bulkChange, ToChangedBy(userName), cancellationToken));
+        var changedBy = ToChangedBy(userName);
+        var result = await _requestService.ChangeStatusBulkAsync(bulkChange, changedBy, cancellationToken);
+        return Ok(result);
     }
 
     /// <summary>
@@ -113,15 +121,24 @@ public class RequestsController : ControllerBase
     /// </summary>
     private static string ToChangedBy(string? userName)
     {
-        var name = string.IsNullOrWhiteSpace(userName) ? string.Empty : Uri.UnescapeDataString(userName).Trim();
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            return AnonymousUser;
+        }
 
+        // "%D7%A9%D7%A8%D7%94" → "שרה"
+        var name = Uri.UnescapeDataString(userName).Trim();
         if (name.Length == 0)
         {
             return AnonymousUser;
         }
 
-        return name.Length <= RequestStatusChange.ChangedByMaxLength
-            ? name
-            : name[..RequestStatusChange.ChangedByMaxLength];
+        // The history column holds at most 100 characters.
+        if (name.Length > RequestStatusChange.ChangedByMaxLength)
+        {
+            name = name.Substring(0, RequestStatusChange.ChangedByMaxLength);
+        }
+
+        return name;
     }
 }

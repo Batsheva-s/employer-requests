@@ -6,64 +6,53 @@ namespace EmployerRequests.UnitTests.Services;
 
 public class SummaryCacheTests
 {
+    // xUnit creates a new instance of this class for every test, so every test starts with an empty cache.
+    private readonly SummaryCache _cache = new SummaryCache(new MemoryCache(new MemoryCacheOptions()));
+
     [Fact]
-    public async Task The_second_read_is_served_from_the_cache()
+    public void A_summary_that_was_kept_is_served_from_the_cache()
     {
-        var cache = CreateCache();
-        var calculations = 0;
+        Assert.Null(_cache.Get());
 
-        var first = await cache.GetOrCalculateAsync(_ => Task.FromResult(Summary(++calculations)), CancellationToken.None);
-        var second = await cache.GetOrCalculateAsync(_ => Task.FromResult(Summary(++calculations)), CancellationToken.None);
+        var summary = Summary(1);
+        _cache.Set(summary, _cache.GetVersion());
 
-        Assert.Equal(1, calculations);
-        Assert.Same(first, second);
+        Assert.Same(summary, _cache.Get());
     }
 
     [Fact]
-    public async Task After_invalidation_the_summary_is_calculated_again()
+    public void After_invalidation_the_summary_is_no_longer_cached()
     {
-        var cache = CreateCache();
-        await cache.GetOrCalculateAsync(_ => Task.FromResult(Summary(1)), CancellationToken.None);
+        _cache.Set(Summary(1), _cache.GetVersion());
 
-        cache.Invalidate();
-        var afterInvalidation = await cache.GetOrCalculateAsync(_ => Task.FromResult(Summary(2)), CancellationToken.None);
+        _cache.Invalidate();
 
-        Assert.Equal(2, afterInvalidation.TotalCount);
+        Assert.Null(_cache.Get());
     }
 
     [Fact]
-    public async Task A_summary_calculated_while_a_status_change_was_saved_is_not_kept()
+    public void A_summary_calculated_while_a_status_change_was_saved_is_not_kept()
     {
-        var cache = CreateCache();
-        var calculationStarted = new TaskCompletionSource();
-        var calculationResult = new TaskCompletionSource<RequestsSummaryDto>();
+        // A read remembers the version and starts calculating...
+        var versionBeforeCalculation = _cache.GetVersion();
 
-        // A read starts calculating and is still running...
-        var slowRead = cache.GetOrCalculateAsync(_ =>
-        {
-            calculationStarted.SetResult();
-            return calculationResult.Task;
-        }, CancellationToken.None);
-        await calculationStarted.Task;
+        // ...a status change is saved meanwhile...
+        _cache.Invalidate();
 
-        // ...when a status change is saved. Then the calculation finishes, with numbers from before the change.
-        cache.Invalidate();
-        calculationResult.SetResult(Summary(1));
-        await slowRead;
+        // ...and the calculation finishes with numbers from before the change.
+        _cache.Set(Summary(1), versionBeforeCalculation);
 
-        // The outdated numbers were not kept: the next read calculates again.
-        var calculatedAgain = false;
-        await cache.GetOrCalculateAsync(_ =>
-        {
-            calculatedAgain = true;
-            return Task.FromResult(Summary(2));
-        }, CancellationToken.None);
-
-        Assert.True(calculatedAgain);
+        // The outdated numbers were not kept: the next read will calculate again.
+        Assert.Null(_cache.Get());
     }
 
-    private static SummaryCache CreateCache() => new(new MemoryCache(new MemoryCacheOptions()));
-
-    private static RequestsSummaryDto Summary(int totalCount) =>
-        new(totalCount, [], [], [], DateTimeOffset.UtcNow);
+    private static RequestsSummaryDto Summary(int totalCount)
+    {
+        return new RequestsSummaryDto(
+            totalCount,
+            new List<StatusCountDto>(),
+            new List<PriorityCountDto>(),
+            new List<AssigneeWorkloadDto>(),
+            DateTimeOffset.UtcNow);
+    }
 }

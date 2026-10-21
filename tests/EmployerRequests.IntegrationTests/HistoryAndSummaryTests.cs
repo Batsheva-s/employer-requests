@@ -19,28 +19,28 @@ public class HistoryAndSummaryTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task History_lists_every_status_change_newest_first()
     {
-        var request = (await _api.ResetAsync(TestRequests.New()))[0];
+        var requests = await _api.ResetAsync(TestRequests.New());
+        var request = requests[0];
         var user = _api.CreateClientAs("רבקה לוי");
 
-        var afterFirstChange = await (await user.ChangeStatusAsync(request.Id, RequestStatus.InProgress, request.RowVersion))
-            .ReadJsonAsync<RequestDetailsDto>();
-        (await user.ChangeStatusAsync(request.Id, RequestStatus.Completed, afterFirstChange.RowVersion)).EnsureSuccessStatusCode();
+        // Two changes: New → InProgress, and then – with the new version – InProgress → Completed.
+        var firstResponse = await user.ChangeStatusAsync(request.Id, RequestStatus.InProgress, request.RowVersion);
+        var afterFirstChange = await firstResponse.ReadJsonAsync<RequestDetailsDto>();
+        var secondResponse = await user.ChangeStatusAsync(request.Id, RequestStatus.Completed, afterFirstChange.RowVersion);
+        secondResponse.EnsureSuccessStatusCode();
 
         var history = await _client.GetJsonAsync<List<RequestStatusChangeDto>>($"/api/requests/{request.Id}/history");
 
-        Assert.Collection(
-            history,
-            newest =>
-            {
-                Assert.Equal(RequestStatus.InProgress, newest.PreviousStatus);
-                Assert.Equal(RequestStatus.Completed, newest.NewStatus);
-                Assert.Equal("רבקה לוי", newest.ChangedBy);
-            },
-            oldest =>
-            {
-                Assert.Equal(RequestStatus.New, oldest.PreviousStatus);
-                Assert.Equal(RequestStatus.InProgress, oldest.NewStatus);
-            });
+        Assert.Equal(2, history.Count);
+
+        var newest = history[0];
+        Assert.Equal(RequestStatus.InProgress, newest.PreviousStatus);
+        Assert.Equal(RequestStatus.Completed, newest.NewStatus);
+        Assert.Equal("רבקה לוי", newest.ChangedBy);
+
+        var oldest = history[1];
+        Assert.Equal(RequestStatus.New, oldest.PreviousStatus);
+        Assert.Equal(RequestStatus.InProgress, oldest.NewStatus);
     }
 
     [Fact]
@@ -80,19 +80,24 @@ public class HistoryAndSummaryTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task The_cached_unfiltered_summary_is_refreshed_right_after_a_status_change()
     {
-        var request = (await _api.ResetAsync(TestRequests.New(status: RequestStatus.New)))[0];
+        var requests = await _api.ResetAsync(TestRequests.New(status: RequestStatus.New));
+        var request = requests[0];
 
         // The unfiltered summary is now calculated and cached.
         var before = await _client.GetJsonAsync<RequestsSummaryDto>("/api/requests/summary");
         Assert.Equal(1, CountOf(before, RequestStatus.New));
 
-        (await _client.ChangeStatusAsync(request.Id, RequestStatus.InProgress, request.RowVersion)).EnsureSuccessStatusCode();
+        var response = await _client.ChangeStatusAsync(request.Id, RequestStatus.InProgress, request.RowVersion);
+        response.EnsureSuccessStatusCode();
 
         var after = await _client.GetJsonAsync<RequestsSummaryDto>("/api/requests/summary");
         Assert.Equal(0, CountOf(after, RequestStatus.New));
         Assert.Equal(1, CountOf(after, RequestStatus.InProgress));
     }
 
-    private static int CountOf(RequestsSummaryDto summary, RequestStatus status) =>
-        summary.ByStatus.Single(count => count.Status == status).Count;
+    private static int CountOf(RequestsSummaryDto summary, RequestStatus status)
+    {
+        var statusCount = summary.ByStatus.Single(count => count.Status == status);
+        return statusCount.Count;
+    }
 }

@@ -1,7 +1,6 @@
 using EmployerRequests.Application.DTOs;
 using EmployerRequests.Application.Exceptions;
 using EmployerRequests.Application.Interfaces;
-using EmployerRequests.Application.Mapping;
 using EmployerRequests.Domain;
 using EmployerRequests.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +36,7 @@ public class RequestRepository : IRequestRepository
         if (skip >= totalCount)
         {
             // Past the last page: no need to ask the database for rows that do not exist.
-            return new PagedResultDto<RequestListItemDto>([], search.Page, search.PageSize, totalCount);
+            return new PagedResultDto<RequestListItemDto>(new List<RequestListItemDto>(), search.Page, search.PageSize, totalCount);
         }
 
         // Query 2: SELECT <the DTO's columns> FROM Requests WHERE <filters> ORDER BY <sort>, Id
@@ -45,45 +44,70 @@ public class RequestRepository : IRequestRepository
         var items = await Sort(query, search.SortBy, search.SortDirection)
             .Skip((int)skip)
             .Take(search.PageSize)
-            .Select(RequestMapper.ToListItem)
+            .Select(request => new RequestListItemDto(
+                request.Id,
+                request.Title,
+                request.OrganizationName,
+                request.Status,
+                request.Priority,
+                request.AssignedTo,
+                request.CreatedAt,
+                request.UpdatedAt,
+                request.RowVersion))
             .ToListAsync(cancellationToken);
 
         return new PagedResultDto<RequestListItemDto>(items, search.Page, search.PageSize, totalCount);
     }
 
-    // SELECT ... FROM Requests WHERE Id = @id
-    public Task<ServiceRequest?> GetByIdAsync(int id, CancellationToken cancellationToken) =>
-        _dbContext.Requests
+    public async Task<ServiceRequest?> GetByIdAsync(int id, CancellationToken cancellationToken)
+    {
+        // SELECT ... FROM Requests WHERE Id = @id
+        return await _dbContext.Requests
             .AsNoTracking()
             .FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
+    }
 
-    // SELECT CASE WHEN EXISTS (SELECT 1 FROM Requests WHERE Id = @id) THEN 1 ELSE 0 END
-    public Task<bool> ExistsAsync(int id, CancellationToken cancellationToken) =>
-        _dbContext.Requests.AnyAsync(request => request.Id == id, cancellationToken);
+    public async Task<bool> ExistsAsync(int id, CancellationToken cancellationToken)
+    {
+        // SELECT CASE WHEN EXISTS (SELECT 1 FROM Requests WHERE Id = @id) THEN 1 ELSE 0 END
+        return await _dbContext.Requests.AnyAsync(request => request.Id == id, cancellationToken);
+    }
 
-    // SELECT <the DTO's columns> FROM RequestStatusChanges WHERE RequestId = @id ORDER BY ChangedAt DESC, Id DESC
-    public async Task<IReadOnlyList<RequestStatusChangeDto>> GetHistoryAsync(int requestId, CancellationToken cancellationToken) =>
-        await _dbContext.RequestStatusChanges
+    public async Task<IReadOnlyList<RequestStatusChangeDto>> GetHistoryAsync(int requestId, CancellationToken cancellationToken)
+    {
+        // SELECT <the DTO's columns> FROM RequestStatusChanges WHERE RequestId = @requestId
+        // ORDER BY ChangedAt DESC, Id DESC
+        return await _dbContext.RequestStatusChanges
             .AsNoTracking()
             .Where(change => change.RequestId == requestId)
             .OrderByDescending(change => change.ChangedAt)
             .ThenByDescending(change => change.Id)
-            .Select(RequestMapper.ToStatusChange)
+            .Select(change => new RequestStatusChangeDto(
+                change.Id,
+                change.PreviousStatus,
+                change.NewStatus,
+                change.ChangedBy,
+                change.ChangedAt))
             .ToListAsync(cancellationToken);
+    }
 
-    // SELECT Status, Priority, COUNT(*) FROM Requests WHERE <filters> GROUP BY Status, Priority
-    public async Task<IReadOnlyList<StatusPriorityCount>> CountByStatusAndPriorityAsync(RequestFilterDto filter, CancellationToken cancellationToken) =>
-        await Filter(_dbContext.Requests.AsNoTracking(), filter)
+    public async Task<IReadOnlyList<StatusPriorityCount>> CountByStatusAndPriorityAsync(RequestFilterDto filter, CancellationToken cancellationToken)
+    {
+        // SELECT Status, Priority, COUNT(*) FROM Requests WHERE <filters> GROUP BY Status, Priority
+        return await Filter(_dbContext.Requests.AsNoTracking(), filter)
             .GroupBy(request => new { request.Status, request.Priority })
             .Select(group => new StatusPriorityCount(group.Key.Status, group.Key.Priority, group.Count()))
             .ToListAsync(cancellationToken);
+    }
 
-    // SELECT TOP (@count) AssignedTo, COUNT(*) FROM Requests
-    // WHERE <filters> AND AssignedTo IS NOT NULL AND Status <> Completed
-    // GROUP BY AssignedTo ORDER BY COUNT(*) DESC, AssignedTo
-    public async Task<IReadOnlyList<AssigneeWorkloadDto>> GetTopAssigneesAsync(RequestFilterDto filter, int count, CancellationToken cancellationToken) =>
-        await Filter(_dbContext.Requests.AsNoTracking(), filter)
+    public async Task<IReadOnlyList<AssigneeWorkloadDto>> GetTopAssigneesAsync(RequestFilterDto filter, int count, CancellationToken cancellationToken)
+    {
+        // SELECT TOP (@count) AssignedTo, COUNT(*) FROM Requests
+        // WHERE <filters> AND AssignedTo IS NOT NULL AND Status <> Completed
+        // GROUP BY AssignedTo ORDER BY COUNT(*) DESC, AssignedTo
+        return await Filter(_dbContext.Requests.AsNoTracking(), filter)
             .Where(request => request.AssignedTo != null && request.Status != RequestStatus.Completed)
+            // The ! only tells the compiler that AssignedTo is not null here – the Where above made sure of it.
             .GroupBy(request => request.AssignedTo!)
             // An anonymous type first: EF Core can sort by its properties in SQL. The DTO is created last.
             .Select(group => new { AssignedTo = group.Key, OpenRequests = group.Count() })
@@ -92,12 +116,15 @@ public class RequestRepository : IRequestRepository
             .Take(count)
             .Select(workload => new AssigneeWorkloadDto(workload.AssignedTo, workload.OpenRequests))
             .ToListAsync(cancellationToken);
+    }
 
     // ---------- Writes ----------
 
-    public Task<ServiceRequest?> GetForUpdateAsync(int id, CancellationToken cancellationToken) =>
+    public async Task<ServiceRequest?> GetForUpdateAsync(int id, CancellationToken cancellationToken)
+    {
         // Tracked (no AsNoTracking): EF Core remembers the loaded RowVersion and puts it in the UPDATE's WHERE.
-        _dbContext.Requests.FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
+        return await _dbContext.Requests.FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
+    }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
@@ -110,11 +137,16 @@ public class RequestRepository : IRequestRepository
         catch (DbUpdateConcurrencyException exception)
         {
             // The UPDATE found a different RowVersion: someone else saved this request first.
-            var requestId = exception.Entries
-                .Select(entry => entry.Entity)
-                .OfType<ServiceRequest>()
-                .Select(request => request.Id)
-                .FirstOrDefault();
+            // The exception lists the entities whose save failed; we take the id of the request among them.
+            var requestId = 0;
+            foreach (var entry in exception.Entries)
+            {
+                if (entry.Entity is ServiceRequest request)
+                {
+                    requestId = request.Id;
+                    break;
+                }
+            }
 
             // Nothing was saved. Forget the pending changes, so this DbContext stays usable – a bulk change
             // continues with the next request on the same DbContext.
@@ -236,8 +268,11 @@ public class RequestRepository : IRequestRepository
 
         // Many requests share a status or a priority. Id breaks the ties, so the order is always the same
         // and a row never appears on two pages or on none.
-        return ascending
-            ? sorted.ThenBy(request => request.Id)
-            : sorted.ThenByDescending(request => request.Id);
+        if (ascending)
+        {
+            return sorted.ThenBy(request => request.Id);
+        }
+
+        return sorted.ThenByDescending(request => request.Id);
     }
 }

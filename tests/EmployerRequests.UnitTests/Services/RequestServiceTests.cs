@@ -10,10 +10,10 @@ namespace EmployerRequests.UnitTests.Services;
 public class RequestServiceTests
 {
     private const string User = "test-user";
-    private static readonly byte[] Version1 = [0, 0, 0, 0, 0, 0, 0, 1];
-    private static readonly byte[] Version2 = [0, 0, 0, 0, 0, 0, 0, 2];
+    private static readonly byte[] Version1 = new byte[] { 0, 0, 0, 0, 0, 0, 0, 1 };
+    private static readonly byte[] Version2 = new byte[] { 0, 0, 0, 0, 0, 0, 0, 2 };
 
-    private readonly SummaryCache _summaryCache = new(new MemoryCache(new MemoryCacheOptions()));
+    private readonly SummaryCache _summaryCache = new SummaryCache(new MemoryCache(new MemoryCacheOptions()));
 
     [Fact]
     public async Task A_change_based_on_an_outdated_version_is_a_conflict_and_nothing_is_saved()
@@ -23,8 +23,9 @@ public class RequestServiceTests
         var service = CreateService(repository);
 
         // The user saw version 1, but the request is already in version 2.
-        await Assert.ThrowsAsync<ConcurrencyConflictException>(() => service.ChangeStatusAsync(
-            1, new ChangeStatusDto { Status = RequestStatus.InProgress, RowVersion = Version1 }, User, CancellationToken.None));
+        var change = new ChangeStatusDto { Status = RequestStatus.InProgress, RowVersion = Version1 };
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(
+            () => service.ChangeStatusAsync(1, change, User, CancellationToken.None));
 
         Assert.Equal(RequestStatus.New, request.Status);
         Assert.Equal(0, repository.SuccessfulSaves);
@@ -39,17 +40,18 @@ public class RequestServiceTests
         repository.Add(TestRequests.Create(3, RequestStatus.InProgress, Version1));
         var service = CreateService(repository);
 
-        var result = await service.ChangeStatusBulkAsync(new BulkChangeStatusDto
+        var bulkChange = new BulkChangeStatusDto
         {
             Status = RequestStatus.InProgress,
-            Items =
-            [
+            Items = new List<BulkChangeStatusItemDto>
+            {
                 Item(1, Version1),      // can be updated
                 Item(2, Version1),      // the user saw version 1; it is in version 2 now
                 Item(3, Version1),      // already in progress: InProgress → InProgress is not a move
                 Item(404, Version1)     // does not exist
-            ]
-        }, User, CancellationToken.None);
+            }
+        };
+        var result = await service.ChangeStatusBulkAsync(bulkChange, User, CancellationToken.None);
 
         Assert.Equal(
             new[] { BulkItemOutcome.Updated, BulkItemOutcome.Conflict, BulkItemOutcome.InvalidTransition, BulkItemOutcome.NotFound },
@@ -60,7 +62,8 @@ public class RequestServiceTests
 
         Assert.Equal(RequestStatus.InProgress, updatable.Status);
         Assert.Equal(RequestStatus.New, changedMeanwhile.Status);
-        Assert.Equal(User, Assert.Single(updatable.StatusChanges).ChangedBy);
+        var historyRow = Assert.Single(updatable.StatusChanges);
+        Assert.Equal(User, historyRow.ChangedBy);
     }
 
     [Fact]
@@ -68,17 +71,19 @@ public class RequestServiceTests
     {
         // Request 2 matched the user's version when it was loaded, but another user saved it before us –
         // only the database can see that. The other requests are still saved.
-        var repository = new FakeRequestRepository { ConflictOnSaveForId = 2 };
+        var repository = new FakeRequestRepository();
+        repository.ConflictOnSaveForId = 2;
         repository.Add(TestRequests.Create(1, RequestStatus.New, Version1));
         repository.Add(TestRequests.Create(2, RequestStatus.New, Version1));
         repository.Add(TestRequests.Create(3, RequestStatus.New, Version1));
         var service = CreateService(repository);
 
-        var result = await service.ChangeStatusBulkAsync(new BulkChangeStatusDto
+        var bulkChange = new BulkChangeStatusDto
         {
             Status = RequestStatus.Waiting,
-            Items = [Item(1, Version1), Item(2, Version1), Item(3, Version1)]
-        }, User, CancellationToken.None);
+            Items = new List<BulkChangeStatusItemDto> { Item(1, Version1), Item(2, Version1), Item(3, Version1) }
+        };
+        var result = await service.ChangeStatusBulkAsync(bulkChange, User, CancellationToken.None);
 
         Assert.Equal(
             new[] { BulkItemOutcome.Updated, BulkItemOutcome.Conflict, BulkItemOutcome.Updated },
@@ -92,11 +97,12 @@ public class RequestServiceTests
         var repository = new FakeRequestRepository();
         repository.Add(TestRequests.Create(1, RequestStatus.New, Version1));
         var service = CreateService(repository);
-        await FillSummaryCacheAsync();
+        FillSummaryCache();
 
-        await service.ChangeStatusAsync(1, new ChangeStatusDto { Status = RequestStatus.InProgress, RowVersion = Version1 }, User, CancellationToken.None);
+        var change = new ChangeStatusDto { Status = RequestStatus.InProgress, RowVersion = Version1 };
+        await service.ChangeStatusAsync(1, change, User, CancellationToken.None);
 
-        Assert.False(await SummaryIsCachedAsync());
+        Assert.Null(_summaryCache.Get());
     }
 
     [Fact]
@@ -104,42 +110,47 @@ public class RequestServiceTests
     {
         // Request 1 is saved; then the database fails on request 2. The error reaches the client as a 500,
         // but the change to request 1 is already saved – so the cached summary must already be cleared.
-        var repository = new FakeRequestRepository { FailOnSaveForId = 2 };
+        var repository = new FakeRequestRepository();
+        repository.FailOnSaveForId = 2;
         repository.Add(TestRequests.Create(1, RequestStatus.New, Version1));
         repository.Add(TestRequests.Create(2, RequestStatus.New, Version1));
         repository.Add(TestRequests.Create(3, RequestStatus.New, Version1));
         var service = CreateService(repository);
-        await FillSummaryCacheAsync();
+        FillSummaryCache();
 
-        await Assert.ThrowsAsync<TimeoutException>(() => service.ChangeStatusBulkAsync(new BulkChangeStatusDto
+        var bulkChange = new BulkChangeStatusDto
         {
             Status = RequestStatus.Waiting,
-            Items = [Item(1, Version1), Item(2, Version1), Item(3, Version1)]
-        }, User, CancellationToken.None));
+            Items = new List<BulkChangeStatusItemDto> { Item(1, Version1), Item(2, Version1), Item(3, Version1) }
+        };
+        await Assert.ThrowsAsync<TimeoutException>(
+            () => service.ChangeStatusBulkAsync(bulkChange, User, CancellationToken.None));
 
         Assert.Equal(1, repository.SuccessfulSaves);
-        Assert.False(await SummaryIsCachedAsync());
+        Assert.Null(_summaryCache.Get());
     }
 
-    private RequestService CreateService(FakeRequestRepository repository) =>
-        new(repository, _summaryCache, NullLogger<RequestService>.Instance);
-
-    private static BulkChangeStatusItemDto Item(int id, byte[] rowVersion) => new() { Id = id, RowVersion = rowVersion };
-
-    private Task FillSummaryCacheAsync() =>
-        _summaryCache.GetOrCalculateAsync(_ => Task.FromResult(EmptySummary()), CancellationToken.None);
-
-    /// <summary>True if the next read is served from the cache – that is, nothing cleared it.</summary>
-    private async Task<bool> SummaryIsCachedAsync()
+    private RequestService CreateService(FakeRequestRepository repository)
     {
-        var calculated = false;
-        await _summaryCache.GetOrCalculateAsync(_ =>
-        {
-            calculated = true;
-            return Task.FromResult(EmptySummary());
-        }, CancellationToken.None);
-        return !calculated;
+        return new RequestService(repository, _summaryCache, NullLogger<RequestService>.Instance);
     }
 
-    private static RequestsSummaryDto EmptySummary() => new(0, [], [], [], DateTimeOffset.UtcNow);
+    private static BulkChangeStatusItemDto Item(int id, byte[] rowVersion)
+    {
+        return new BulkChangeStatusItemDto { Id = id, RowVersion = rowVersion };
+    }
+
+    /// <summary>Puts a summary in the cache, as the first read of the unfiltered summary does.</summary>
+    private void FillSummaryCache()
+    {
+        var emptySummary = new RequestsSummaryDto(
+            0,
+            new List<StatusCountDto>(),
+            new List<PriorityCountDto>(),
+            new List<AssigneeWorkloadDto>(),
+            DateTimeOffset.UtcNow);
+
+        _summaryCache.Set(emptySummary, _summaryCache.GetVersion());
+        Assert.NotNull(_summaryCache.Get());
+    }
 }

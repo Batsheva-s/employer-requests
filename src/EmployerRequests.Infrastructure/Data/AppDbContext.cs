@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     {
     }
 
+    // The two tables. Set<T>() returns EF Core's table of T.
     public DbSet<ServiceRequest> Requests => Set<ServiceRequest>();
 
     public DbSet<RequestStatusChange> RequestStatusChanges => Set<RequestStatusChange>();

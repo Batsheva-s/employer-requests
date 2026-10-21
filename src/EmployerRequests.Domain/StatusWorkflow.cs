@@ -1,5 +1,3 @@
-using System.Collections.ObjectModel;
-
 namespace EmployerRequests.Domain;
 
 /// <summary>
@@ -14,19 +12,32 @@ namespace EmployerRequests.Domain;
 /// </summary>
 public static class StatusWorkflow
 {
-    // Read-only lists: what NextStatuses hands out cannot be used to change the rules.
-    private static readonly Dictionary<RequestStatus, ReadOnlyCollection<RequestStatus>> AllowedMoves = new()
-    {
-        [RequestStatus.New] = new([RequestStatus.InProgress, RequestStatus.Waiting]),
-        [RequestStatus.InProgress] = new([RequestStatus.Waiting, RequestStatus.Completed]),
-        [RequestStatus.Waiting] = new([RequestStatus.InProgress, RequestStatus.Completed]),
-        [RequestStatus.Completed] = new([RequestStatus.InProgress]),
-    };
-
     /// <summary>The statuses a request in <paramref name="current"/> status may move to.</summary>
-    public static IReadOnlyList<RequestStatus> NextStatuses(RequestStatus current) =>
-        AllowedMoves.TryGetValue(current, out var next) ? next : ReadOnlyCollection<RequestStatus>.Empty;
+    public static IReadOnlyList<RequestStatus> NextStatuses(RequestStatus current)
+    {
+        // A new array on every call: whoever receives it cannot change the rules.
+        switch (current)
+        {
+            case RequestStatus.New:
+                return new[] { RequestStatus.InProgress, RequestStatus.Waiting };
 
-    public static bool CanMove(RequestStatus from, RequestStatus to) =>
-        NextStatuses(from).Contains(to);
+            case RequestStatus.InProgress:
+                return new[] { RequestStatus.Waiting, RequestStatus.Completed };
+
+            case RequestStatus.Waiting:
+                return new[] { RequestStatus.InProgress, RequestStatus.Completed };
+
+            case RequestStatus.Completed:
+                return new[] { RequestStatus.InProgress };
+
+            default:
+                return Array.Empty<RequestStatus>();
+        }
+    }
+
+    /// <summary>True if a request in status <paramref name="from"/> may move to <paramref name="to"/>.</summary>
+    public static bool CanMove(RequestStatus from, RequestStatus to)
+    {
+        return NextStatuses(from).Contains(to);
+    }
 }

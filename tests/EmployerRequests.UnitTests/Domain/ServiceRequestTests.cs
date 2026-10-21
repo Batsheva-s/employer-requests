@@ -4,8 +4,8 @@ namespace EmployerRequests.UnitTests.Domain;
 
 public class ServiceRequestTests
 {
-    private static readonly DateTimeOffset CreatedAt = new(2026, 1, 1, 8, 0, 0, TimeSpan.Zero);
-    private static readonly DateTimeOffset ChangedAt = new(2026, 1, 2, 9, 30, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset CreatedAt = new DateTimeOffset(2026, 1, 1, 8, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset ChangedAt = new DateTimeOffset(2026, 1, 2, 9, 30, 0, TimeSpan.Zero);
 
     [Fact]
     public void ChangeStatus_moves_the_request_updates_the_time_and_records_the_change()

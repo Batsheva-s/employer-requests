@@ -5,6 +5,7 @@ using EmployerRequests.Application.Services;
 using EmployerRequests.Infrastructure.Data;
 using EmployerRequests.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +31,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new()
+    options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "Employer Requests API",
         Version = "v1",
@@ -38,26 +39,32 @@ builder.Services.AddSwaggerGen(options =>
     });
 
     // The XML comments of the controller and of the DTOs become descriptions in Swagger.
-    foreach (var assemblyName in new[] { "EmployerRequests.Api", "EmployerRequests.Application" })
-    {
-        options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, $"{assemblyName}.xml"));
-    }
+    options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "EmployerRequests.Api.xml"));
+    options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "EmployerRequests.Application.xml"));
 });
 
 // ---------- Our classes (dependency injection) ----------
 
-var connectionString = builder.Configuration.GetConnectionString("Requests")
-    ?? throw new InvalidOperationException("Connection string 'Requests' is missing.");
+var connectionString = builder.Configuration.GetConnectionString("Requests");
+if (connectionString == null)
+{
+    throw new InvalidOperationException("Connection string 'Requests' is missing.");
+}
 
 // Scoped – one DbContext per HTTP request (the default of AddDbContext).
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(connectionString, sqlServer => sqlServer
+{
+    options.UseSqlServer(connectionString, sqlServer =>
+    {
         // Compatibility level 130 (SQL Server 2016): EF Core generates only SQL that LocalDB 2016 understands;
         // newer servers run it just as well.
-        .UseCompatibilityLevel(130)
+        sqlServer.UseCompatibilityLevel(130);
+
         // A database error that passes by itself – a dropped connection, a deadlock – is tried again up to 3 times,
         // a moment apart, before it becomes a 500. Conflicts and invalid requests are never "transient": no retry.
-        .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(2), errorNumbersToAdd: null)));
+        sqlServer.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(2), errorNumbersToAdd: null);
+    });
+});
 
 // Scoped, like the DbContext they use: one instance per HTTP request.
 builder.Services.AddScoped<IRequestRepository, RequestRepository>();
@@ -82,14 +89,21 @@ if (args.Length > 0 && args[0] == "seed")
     }
 
     var count = TestDataSeeder.DefaultCount;
-    if (args.Length > 1 && (!int.TryParse(args[1], out count) || count < 1 || count > TestDataSeeder.MaxCount))
+    if (args.Length > 1)
     {
-        Console.Error.WriteLine($"The number of requests must be between 1 and {TestDataSeeder.MaxCount:N0}.");
-        return 1;
+        var isNumber = int.TryParse(args[1], out count);
+        if (!isNumber || count < 1 || count > TestDataSeeder.MaxCount)
+        {
+            Console.Error.WriteLine($"The number of requests must be between 1 and {TestDataSeeder.MaxCount:N0}.");
+            return 1;
+        }
     }
 
+    // TestDataSeeder is scoped (it uses the DbContext), and outside an HTTP request there is no scope –
+    // so one is created here.
     await using var seedScope = app.Services.CreateAsyncScope();
-    await seedScope.ServiceProvider.GetRequiredService<TestDataSeeder>().RecreateAsync(count);
+    var seeder = seedScope.ServiceProvider.GetRequiredService<TestDataSeeder>();
+    await seeder.RecreateAsync(count);
     return 0;
 }
 
@@ -98,7 +112,8 @@ if (args.Length > 0 && args[0] == "seed")
 if (app.Environment.IsDevelopment())
 {
     await using var startupScope = app.Services.CreateAsyncScope();
-    await startupScope.ServiceProvider.GetRequiredService<TestDataSeeder>().PrepareDatabaseAsync();
+    var seeder = startupScope.ServiceProvider.GetRequiredService<TestDataSeeder>();
+    await seeder.PrepareDatabaseAsync();
 }
 
 // ---------- HTTP pipeline ----------
@@ -119,4 +134,6 @@ await app.RunAsync();
 return 0;
 
 // Lets the integration tests start the real application with WebApplicationFactory<Program>.
-public partial class Program;
+public partial class Program
+{
+}

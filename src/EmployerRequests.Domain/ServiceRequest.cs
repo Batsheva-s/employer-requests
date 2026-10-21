@@ -14,7 +14,7 @@ public class ServiceRequest
     public const int OrganizationNameMaxLength = 200;
     public const int AssignedToMaxLength = 100;
 
-    private readonly List<RequestStatusChange> _statusChanges = [];
+    private readonly List<RequestStatusChange> _statusChanges = new List<RequestStatusChange>();
 
     // Required by EF Core to materialize rows.
     private ServiceRequest()
@@ -60,7 +60,7 @@ public class ServiceRequest
     /// The version of the row. SQL Server generates a new value on every update (a rowversion column),
     /// which is how a concurrent change by another user is detected.
     /// </summary>
-    public byte[] RowVersion { get; private set; } = [];
+    public byte[] RowVersion { get; private set; } = Array.Empty<byte>();
 
     /// <summary>
     /// The status history. Only changes made in the current unit of work are loaded here;

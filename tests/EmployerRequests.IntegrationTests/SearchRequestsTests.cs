@@ -72,7 +72,13 @@ public class SearchRequestsTests : IClassFixture<ApiFactory>
     public async Task Paging_over_equal_sort_values_returns_every_request_exactly_once()
     {
         // 25 requests created at the same moment: only the Id tie-breaker gives them a stable order.
-        await _api.ResetAsync(Enumerable.Range(1, 25).Select(i => TestRequests.New($"פנייה {i}")).ToArray());
+        var requests = new List<ServiceRequest>();
+        for (var i = 1; i <= 25; i++)
+        {
+            requests.Add(TestRequests.New($"פנייה {i}"));
+        }
+
+        await _api.ResetAsync(requests.ToArray());
 
         var seen = new List<int>();
         for (var page = 1; page <= 3; page++)
@@ -99,6 +105,7 @@ public class SearchRequestsTests : IClassFixture<ApiFactory>
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        Assert.NotEmpty(problem!.Errors);
+        Assert.NotNull(problem);
+        Assert.NotEmpty(problem.Errors);
     }
 }

@@ -22,30 +22,40 @@ namespace EmployerRequests.IntegrationTests.Helpers;
 /// </summary>
 public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter() }
-    };
+    /// <summary>The same JSON as the API: camelCase names, and enums as names ("InProgress").</summary>
+    public static readonly JsonSerializerOptions Json = CreateJsonOptions();
 
+    // A new database name for every test class.
     private readonly string _connectionString = BuildConnectionString($"EmployerRequestsTests_{Guid.NewGuid():N}");
 
+    /// <summary>Runs before the first test of the class: creates the database from the migrations.</summary>
     public async Task InitializeAsync()
     {
         await using var scope = Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await dbContext.Database.MigrateAsync();
     }
 
+    /// <summary>Runs after the last test of the class: deletes the database, then stops the API.</summary>
+    /// <remarks>
+    /// Written as IAsyncLifetime.DisposeAsync because WebApplicationFactory already has a DisposeAsync of its own –
+    /// the one called at the end.
+    /// </remarks>
     async Task IAsyncLifetime.DisposeAsync()
     {
         await using (var scope = Services.CreateAsyncScope())
         {
-            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureDeletedAsync();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await dbContext.Database.EnsureDeletedAsync();
         }
 
         await DisposeAsync();
     }
 
-    /// <summary>Deletes all the data and inserts <paramref name="requests"/>. They come back with the Id and RowVersion the database gave them.</summary>
+    /// <summary>
+    /// Deletes all the data and inserts <paramref name="requests"/>.
+    /// They come back with the Id and RowVersion the database gave them.
+    /// </summary>
     public async Task<ServiceRequest[]> ResetAsync(params ServiceRequest[] requests)
     {
         await using var scope = Services.CreateAsyncScope();
@@ -57,7 +67,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         await dbContext.SaveChangesAsync();
 
         // The data changed behind the API's back, so the cached summary is outdated.
-        Services.GetRequiredService<SummaryCache>().Invalidate();
+        var summaryCache = Services.GetRequiredService<SummaryCache>();
+        summaryCache.Invalidate();
+
         return requests;
     }
 
@@ -69,11 +81,27 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         return client;
     }
 
-    /// <summary>Reads the database directly – to check what was really saved, not what the API says.</summary>
-    public async Task<T> QueryAsync<T>(Func<AppDbContext, Task<T>> query)
+    // ---------- Reading the database directly: what was really saved, not what the API says ----------
+
+    public async Task<ServiceRequest> GetSavedRequestAsync(int id)
     {
         await using var scope = Services.CreateAsyncScope();
-        return await query(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await dbContext.Requests.AsNoTracking().SingleAsync(request => request.Id == id);
+    }
+
+    public async Task<List<RequestStatusChange>> GetSavedHistoryAsync(int requestId)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await dbContext.RequestStatusChanges.AsNoTracking().Where(change => change.RequestId == requestId).ToListAsync();
+    }
+
+    public async Task<List<RequestStatusChange>> GetSavedHistoryByUserAsync(string changedBy)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await dbContext.RequestStatusChanges.AsNoTracking().Where(change => change.ChangedBy == changedBy).ToListAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -82,18 +110,30 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("ConnectionStrings:Requests", _connectionString);
     }
 
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+        return options;
+    }
+
     private static string BuildConnectionString(string database)
     {
         var configured = Environment.GetEnvironmentVariable("TESTS_SQLSERVER_CONNECTION");
 
-        var connection = string.IsNullOrWhiteSpace(configured)
-            ? new SqlConnectionStringBuilder
-            {
-                DataSource = @"(localdb)\MSSQLLocalDB",
-                IntegratedSecurity = true,
-                TrustServerCertificate = true
-            }
-            : new SqlConnectionStringBuilder(configured);
+        SqlConnectionStringBuilder connection;
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            // Nothing configured: LocalDB, which comes with Visual Studio.
+            connection = new SqlConnectionStringBuilder();
+            connection.DataSource = @"(localdb)\MSSQLLocalDB";
+            connection.IntegratedSecurity = true;
+            connection.TrustServerCertificate = true;
+        }
+        else
+        {
+            connection = new SqlConnectionStringBuilder(configured);
+        }
 
         connection.InitialCatalog = database;
         return connection.ConnectionString;

@@ -44,60 +44,76 @@ public class GlobalExceptionHandler : IExceptionHandler
         }
 
         var problem = CreateProblem(exception);
+        var statusCode = problem.Status ?? StatusCodes.Status500InternalServerError;
 
-        if (problem.Status == StatusCodes.Status500InternalServerError)
+        if (statusCode == StatusCodes.Status500InternalServerError)
         {
+            // A bug or an infrastructure failure: the full exception goes to the log.
             _logger.LogError(exception, "Unhandled exception for {Method} {Path}", method, path);
         }
         else
         {
-            _logger.LogWarning("{StatusCode} for {Method} {Path}: {Detail}", problem.Status, method, path, problem.Detail);
+            // An expected business answer (404, 409, 422): one line is enough.
+            _logger.LogWarning("{StatusCode} for {Method} {Path}: {Detail}", statusCode, method, path, problem.Detail);
         }
 
-        httpContext.Response.StatusCode = problem.Status!.Value;
+        httpContext.Response.StatusCode = statusCode;
 
-        return await _problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+        var problemContext = new ProblemDetailsContext
         {
             HttpContext = httpContext,
             ProblemDetails = problem,
             Exception = exception
-        });
+        };
+        return await _problemDetailsService.TryWriteAsync(problemContext);
     }
 
-    private static ProblemDetails CreateProblem(Exception exception) => exception switch
+    /// <summary>The answer for each kind of exception.</summary>
+    private static ProblemDetails CreateProblem(Exception exception)
     {
-        NotFoundException => new ProblemDetails
+        if (exception is NotFoundException)
         {
-            Status = StatusCodes.Status404NotFound,
-            Title = "Not found",
-            Detail = exception.Message
-        },
-
-        ConcurrencyConflictException => new ProblemDetails
-        {
-            Status = StatusCodes.Status409Conflict,
-            Title = "The request was changed by another user",
-            Detail = exception.Message
-        },
-
-        InvalidStatusTransitionException transition => new ProblemDetails
-        {
-            Status = StatusCodes.Status422UnprocessableEntity,
-            Title = "Status change not allowed",
-            Detail = exception.Message,
-            Extensions =
+            return new ProblemDetails
             {
-                ["currentStatus"] = transition.CurrentStatus.ToString(),
-                ["requestedStatus"] = transition.RequestedStatus.ToString(),
-                ["allowedStatuses"] = transition.AllowedStatuses.Select(status => status.ToString()).ToArray()
-            }
-        },
+                Status = StatusCodes.Status404NotFound,
+                Title = "Not found",
+                Detail = exception.Message
+            };
+        }
 
-        _ => new ProblemDetails
+        if (exception is ConcurrencyConflictException)
+        {
+            return new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "The request was changed by another user",
+                Detail = exception.Message
+            };
+        }
+
+        if (exception is InvalidStatusTransitionException transition)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status422UnprocessableEntity,
+                Title = "Status change not allowed",
+                Detail = exception.Message
+            };
+
+            // Extra fields in the JSON answer, so the client can tell the user what is allowed instead.
+            problem.Extensions["currentStatus"] = transition.CurrentStatus.ToString();
+            problem.Extensions["requestedStatus"] = transition.RequestedStatus.ToString();
+            problem.Extensions["allowedStatuses"] = transition.AllowedStatuses.Select(status => status.ToString()).ToArray();
+            return problem;
+        }
+
+        // Anything else is unexpected. Its message may contain internal details (server names, SQL), so the
+        // answer says only that something went wrong; the details are in the log.
+        return new ProblemDetails
         {
             Status = StatusCodes.Status500InternalServerError,
             Title = "An unexpected error occurred",
             Detail = "The request could not be completed. The error was logged on the server."
-        }
-    };
+        };
+    }
 }

@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using EmployerRequests.Application.DTOs;
 using EmployerRequests.Domain;
 using EmployerRequests.IntegrationTests.Helpers;
-using Microsoft.EntityFrameworkCore;
 
 namespace EmployerRequests.IntegrationTests;
 
@@ -23,24 +22,27 @@ public class BulkChangeStatusTests : IClassFixture<ApiFactory>
             TestRequests.New("will be updated"),
             TestRequests.New("changed by someone else meanwhile"),
             TestRequests.New("already in progress", status: RequestStatus.InProgress));
-        var (willUpdate, changedMeanwhile, alreadyInProgress) = (requests[0], requests[1], requests[2]);
+        var willUpdate = requests[0];
+        var changedMeanwhile = requests[1];
+        var alreadyInProgress = requests[2];
 
         // After the user selected the requests, someone else changes the second one.
         var otherChange = await _api.CreateClientAs("someone-else")
             .ChangeStatusAsync(changedMeanwhile.Id, RequestStatus.Waiting, changedMeanwhile.RowVersion);
         otherChange.EnsureSuccessStatusCode();
 
-        var response = await _api.CreateClientAs("bulk-user").PatchAsJsonAsync("/api/requests/status", new
+        var bulkChange = new BulkChangeStatusDto
         {
-            status = RequestStatus.InProgress,
-            items = new[]
+            Status = RequestStatus.InProgress,
+            Items = new List<BulkChangeStatusItemDto>
             {
-                new { id = willUpdate.Id, rowVersion = willUpdate.RowVersion },
-                new { id = changedMeanwhile.Id, rowVersion = changedMeanwhile.RowVersion },
-                new { id = alreadyInProgress.Id, rowVersion = alreadyInProgress.RowVersion },
-                new { id = 999_999, rowVersion = willUpdate.RowVersion }
+                Item(willUpdate.Id, willUpdate.RowVersion),
+                Item(changedMeanwhile.Id, changedMeanwhile.RowVersion),
+                Item(alreadyInProgress.Id, alreadyInProgress.RowVersion),
+                Item(999_999, willUpdate.RowVersion)
             }
-        }, ApiFactory.Json);
+        };
+        var response = await _api.CreateClientAs("bulk-user").PatchAsJsonAsync("/api/requests/status", bulkChange, ApiFactory.Json);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.ReadJsonAsync<BulkChangeStatusResultDto>();
@@ -52,39 +54,58 @@ public class BulkChangeStatusTests : IClassFixture<ApiFactory>
         Assert.Equal(3, result.Failed);
 
         // What the database really holds: the update was saved; the newer change of the other user was not overwritten.
-        var stored = await _api.QueryAsync(db => db.Requests.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.Status));
-        Assert.Equal(RequestStatus.InProgress, stored[willUpdate.Id]);
-        Assert.Equal(RequestStatus.Waiting, stored[changedMeanwhile.Id]);
+        var savedWillUpdate = await _api.GetSavedRequestAsync(willUpdate.Id);
+        var savedChangedMeanwhile = await _api.GetSavedRequestAsync(changedMeanwhile.Id);
+        Assert.Equal(RequestStatus.InProgress, savedWillUpdate.Status);
+        Assert.Equal(RequestStatus.Waiting, savedChangedMeanwhile.Status);
 
-        var bulkHistory = await _api.QueryAsync(db => db.RequestStatusChanges.Where(change => change.ChangedBy == "bulk-user").ToListAsync());
-        Assert.Equal(willUpdate.Id, Assert.Single(bulkHistory).RequestId);
+        var bulkHistory = await _api.GetSavedHistoryByUserAsync("bulk-user");
+        var historyRow = Assert.Single(bulkHistory);
+        Assert.Equal(willUpdate.Id, historyRow.RequestId);
     }
 
     [Fact]
     public async Task A_batch_of_more_than_100_requests_is_rejected_and_nothing_changes()
     {
-        var request = (await _api.ResetAsync(TestRequests.New()))[0];
-        var items = Enumerable.Range(0, 101)
-            .Select(i => new { id = request.Id + i, rowVersion = request.RowVersion })
-            .ToArray();
+        var requests = await _api.ResetAsync(TestRequests.New());
+        var request = requests[0];
 
-        var response = await _api.CreateClient().PatchAsJsonAsync(
-            "/api/requests/status", new { status = RequestStatus.InProgress, items }, ApiFactory.Json);
+        var items = new List<BulkChangeStatusItemDto>();
+        for (var i = 0; i < 101; i++)
+        {
+            items.Add(Item(request.Id + i, request.RowVersion));
+        }
+
+        var bulkChange = new BulkChangeStatusDto { Status = RequestStatus.InProgress, Items = items };
+        var response = await _api.CreateClient().PatchAsJsonAsync("/api/requests/status", bulkChange, ApiFactory.Json);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var stored = await _api.QueryAsync(db => db.Requests.AsNoTracking().SingleAsync(r => r.Id == request.Id));
-        Assert.Equal(RequestStatus.New, stored.Status);
+        var saved = await _api.GetSavedRequestAsync(request.Id);
+        Assert.Equal(RequestStatus.New, saved.Status);
     }
 
     [Fact]
     public async Task A_batch_that_lists_the_same_request_twice_is_rejected()
     {
-        var request = (await _api.ResetAsync(TestRequests.New()))[0];
-        var item = new { id = request.Id, rowVersion = request.RowVersion };
+        var requests = await _api.ResetAsync(TestRequests.New());
+        var request = requests[0];
 
-        var response = await _api.CreateClient().PatchAsJsonAsync(
-            "/api/requests/status", new { status = RequestStatus.InProgress, items = new[] { item, item } }, ApiFactory.Json);
+        var bulkChange = new BulkChangeStatusDto
+        {
+            Status = RequestStatus.InProgress,
+            Items = new List<BulkChangeStatusItemDto>
+            {
+                Item(request.Id, request.RowVersion),
+                Item(request.Id, request.RowVersion)
+            }
+        };
+        var response = await _api.CreateClient().PatchAsJsonAsync("/api/requests/status", bulkChange, ApiFactory.Json);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    private static BulkChangeStatusItemDto Item(int id, byte[] rowVersion)
+    {
+        return new BulkChangeStatusItemDto { Id = id, RowVersion = rowVersion };
     }
 }
