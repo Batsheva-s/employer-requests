@@ -104,6 +104,7 @@ function startOfDay(day: string, addDays: number): Date {
   const month = Number(parts[1]);
   const date = Number(parts[2]);
 
-  // In JavaScript, months are counted from 0. Day 32 of a month becomes the 1st of the next month by itself.
+  // In JavaScript, months are counted from 0. A day past the end of the month moves on by itself:
+  // 31 March + 1 day → 1 April.
   return new Date(year, month - 1, date + addDays);
 }

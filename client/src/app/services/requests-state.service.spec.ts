@@ -19,7 +19,8 @@ describe('RequestsStateService', () => {
   });
 
   afterEach(() => {
-    // Every search also loads the summary; the tests that do not check the summary leave those calls unanswered.
+    // The summary is loaded next to the list – when the service starts, when the filters change and on reload.
+    // The tests that do not check the summary leave those calls unanswered.
     http.match((request) => request.url === '/api/requests/summary');
     http.verify(); // no other call was made without the test expecting it
   });
