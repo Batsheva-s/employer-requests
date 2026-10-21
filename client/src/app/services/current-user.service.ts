@@ -15,7 +15,13 @@ export class CurrentUserService {
   readonly name = signal(readStoredName());
 
   /** The name recorded in the history: what the user typed, or a default name when the field is empty. */
-  readonly nameForHistory = computed(() => this.name().trim() || DEFAULT_NAME);
+  readonly nameForHistory = computed(() => {
+    const name = this.name().trim();
+    if (name === '') {
+      return DEFAULT_NAME;
+    }
+    return name;
+  });
 
   setName(name: string): void {
     this.name.set(name);
@@ -29,8 +35,12 @@ export class CurrentUserService {
 
 function readStoredName(): string {
   try {
-    return localStorage.getItem(STORAGE_KEY) ?? '';
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === null) {
+      return ''; // the first visit
+    }
+    return stored;
   } catch {
-    return '';
+    return ''; // storage is not available
   }
 }

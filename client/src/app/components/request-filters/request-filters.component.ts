@@ -12,7 +12,7 @@ import {
   RequestFilters,
   RequestPriority,
   RequestStatus,
-  sameValue,
+  sameFilters,
 } from '../../models/request.models';
 import { PriorityLabelPipe, StatusLabelPipe } from '../../pipes/labels.pipe';
 
@@ -51,10 +51,13 @@ export class RequestFiltersComponent {
       .pipe(
         // Debounce: wait until the user has stopped typing for 300 ms, then search once – not on every key press.
         debounceTime(FILTER_DEBOUNCE_MS),
+        // The values of all the fields, as one RequestFilters object.
         map(() => this.form.getRawValue()),
+        // A date range that ends before it starts is not sent; the field shows a message instead.
         filter((filters) => isDateRangeValid(filters)),
         // Filters equal to the last ones emitted are dropped (the state service also ignores filters it already has).
-        distinctUntilChanged(sameValue),
+        distinctUntilChanged(sameFilters),
+        // Stops listening when the component is destroyed.
         takeUntilDestroyed(),
       )
       .subscribe((filters) => this.filtersChange.emit(filters));
@@ -69,6 +72,11 @@ export class RequestFiltersComponent {
   }
 }
 
+/** A date range is valid when one of its ends is empty, or when it does not end before it starts. */
 function isDateRangeValid(filters: RequestFilters): boolean {
-  return !filters.createdFrom || !filters.createdTo || filters.createdFrom <= filters.createdTo;
+  if (filters.createdFrom === '' || filters.createdTo === '') {
+    return true;
+  }
+  // yyyy-MM-dd texts compare like the dates themselves: "2026-03-01" < "2026-03-15".
+  return filters.createdFrom <= filters.createdTo;
 }

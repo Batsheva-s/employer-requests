@@ -3,7 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { requestsCount } from '../../utils/labels';
-import { REQUEST_STATUSES, RequestStatus } from '../../models/request.models';
+import { RequestStatus } from '../../models/request.models';
 import { StatusLabelPipe } from '../../pipes/labels.pipe';
 
 /** Appears while requests are selected: pick one status and apply it to all of them. */
@@ -17,7 +17,7 @@ export class BulkStatusBarComponent {
   /** The same limit the server enforces. */
   protected readonly maxItems = 100;
   /** No request may move back to "New" (StatusWorkflow), so it is not offered. */
-  protected readonly statuses = REQUEST_STATUSES.filter((status) => status !== 'New');
+  protected readonly statuses: RequestStatus[] = ['InProgress', 'Waiting', 'Completed'];
 
   readonly count = input.required<number>();
   readonly busy = input(false);
@@ -26,7 +26,11 @@ export class BulkStatusBarComponent {
   readonly clear = output<void>();
 
   protected readonly newStatus = signal<RequestStatus>('InProgress');
-  protected readonly selectedText = computed(() =>
-    this.count() === 1 ? 'נבחרה פנייה אחת' : `נבחרו ${requestsCount(this.count())}`,
-  );
+  /** "נבחרה פנייה אחת" / "נבחרו 3 פניות" */
+  protected readonly selectedText = computed(() => {
+    if (this.count() === 1) {
+      return 'נבחרה פנייה אחת';
+    }
+    return `נבחרו ${requestsCount(this.count())}`;
+  });
 }

@@ -24,5 +24,9 @@ export const BULK_OUTCOME_LABELS: Record<BulkItemOutcome, string> = {
 
 /** "פנייה אחת" / "3 פניות". */
 export function requestsCount(count: number): string {
-  return count === 1 ? 'פנייה אחת' : `${count.toLocaleString('he-IL')} פניות`;
+  if (count === 1) {
+    return 'פנייה אחת';
+  }
+  // toLocaleString: 1234 → "1,234"
+  return `${count.toLocaleString('he-IL')} פניות`;
 }

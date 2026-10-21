@@ -1,4 +1,8 @@
-<app-requests-summary [filters]="state.filters()" [refreshKey]="summaryRefresh()" />
+<app-requests-summary
+  [summary]="state.summary()"
+  [loading]="state.summaryLoading()"
+  [errorMessage]="state.summaryError()"
+/>
 
 <app-request-filters (filtersChange)="state.setFilters($event)" />
 

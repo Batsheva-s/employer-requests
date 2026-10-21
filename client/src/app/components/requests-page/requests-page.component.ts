@@ -39,9 +39,6 @@ export class RequestsPageComponent {
   protected readonly pageSizeOptions = [10, 20, 50, 100];
   protected readonly outcomeLabels = BULK_OUTCOME_LABELS;
 
-  /** Increased after every status change, so the summary loads its numbers again. */
-  protected readonly summaryRefresh = signal(0);
-
   protected readonly bulkBusy = signal(false);
   protected readonly bulkResult = signal<BulkChangeStatusResult | null>(null);
   protected readonly bulkError = signal<string | null>(null);
@@ -49,33 +46,51 @@ export class RequestsPageComponent {
   /** "עודכנו 3 פניות. לא עודכנה פנייה אחת:" */
   protected readonly bulkSummary = computed(() => {
     const result = this.bulkResult();
-    if (!result) {
+    if (result === null) {
       return '';
     }
-    const updated = result.succeeded === 0 ? 'לא עודכנה אף פנייה.' : `עודכנו ${requestsCount(result.succeeded)}.`;
-    const failed = result.failed === 0 ? '' : ` לא עודכנו ${requestsCount(result.failed)}:`;
-    return updated + failed;
+
+    let text = '';
+    if (result.succeeded === 0) {
+      text = 'לא עודכנה אף פנייה.';
+    } else {
+      text = `עודכנו ${requestsCount(result.succeeded)}.`;
+    }
+
+    if (result.failed > 0) {
+      text += ` לא עודכנו ${requestsCount(result.failed)}:`;
+    }
+    return text;
   });
 
   /** The requests of the last bulk change that were not updated, each with the reason. */
-  protected readonly bulkFailures = computed(() => this.bulkResult()?.items.filter((item) => item.outcome !== 'Updated') ?? []);
+  protected readonly bulkFailures = computed(() => {
+    const result = this.bulkResult();
+    if (result === null) {
+      return [];
+    }
+    return result.items.filter((item) => item.outcome !== 'Updated');
+  });
 
   protected onPage(event: PageEvent): void {
+    // The paginator counts pages from 0; the API counts them from 1.
     this.state.setPage(event.pageIndex + 1, event.pageSize);
   }
 
   protected openDetails(requestId: number): void {
-    this.dialog
-      .open<RequestDetailsDialogComponent, RequestDetailsDialogData>(RequestDetailsDialogComponent, {
-        data: { requestId },
-        width: '760px',
-        maxWidth: '95vw',
-        direction: 'rtl',
-        autoFocus: false,
-      })
-      .afterClosed()
-      // Whatever happened in the dialog – a change, or a conflict that showed newer data – show the current state.
-      .subscribe(() => this.refresh());
+    const data: RequestDetailsDialogData = { requestId: requestId };
+    const dialogRef = this.dialog.open(RequestDetailsDialogComponent, {
+      data: data,
+      width: '760px',
+      maxWidth: '95vw',
+      direction: 'rtl',
+      autoFocus: false,
+    });
+
+    // Whatever happened in the dialog – a change, or a conflict that showed newer data – show the current state.
+    dialogRef.afterClosed().subscribe(() => {
+      this.state.reload();
+    });
   }
 
   protected changeStatusOfSelected(status: RequestStatus): void {
@@ -87,19 +102,13 @@ export class RequestsPageComponent {
       next: (result) => {
         this.bulkBusy.set(false);
         this.bulkResult.set(result);
-        this.summaryRefresh.update((value) => value + 1);
       },
       error: (error: unknown) => {
         this.bulkBusy.set(false);
         this.bulkError.set(describeHttpError(error));
         // Requests handled before the failure may already be saved: load the current state.
-        this.refresh();
+        this.state.reload();
       },
     });
-  }
-
-  private refresh(): void {
-    this.state.reload();
-    this.summaryRefresh.update((value) => value + 1);
   }
 }

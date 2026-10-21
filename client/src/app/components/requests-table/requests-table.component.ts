@@ -29,13 +29,31 @@ export class RequestsTableComponent {
 
   protected readonly columns = ['select', 'id', 'title', 'organizationName', 'status', 'priority', 'assignedTo', 'createdAt', 'updatedAt'];
 
-  protected readonly allSelected = computed(() => this.items().length > 0 && this.items().every((item) => this.selectedIds().has(item.id)));
-  protected readonly someSelected = computed(() => !this.allSelected() && this.items().some((item) => this.selectedIds().has(item.id)));
+  /** Every request on the page is selected: the header checkbox is checked. */
+  protected readonly allSelected = computed(() => {
+    const items = this.items();
+    if (items.length === 0) {
+      return false;
+    }
+    return items.every((item) => this.selectedIds().has(item.id));
+  });
+
+  /** Some, but not all, are selected: the header checkbox shows a dash. */
+  protected readonly someSelected = computed(() => {
+    if (this.allSelected()) {
+      return false;
+    }
+    return this.items().some((item) => this.selectedIds().has(item.id));
+  });
 
   protected onSort(sort: Sort): void {
     // matSortDisableClear: a header click always gives a direction – there is no "unsorted" state.
-    if (sort.direction) {
-      this.sortChange.emit({ sortBy: sort.active as SortField, sortDirection: sort.direction });
+    if (sort.direction === '') {
+      return;
     }
+
+    // sort.active is the name of the column, and the columns that can be sorted are named after the sort fields.
+    const sortBy = sort.active as SortField;
+    this.sortChange.emit({ sortBy: sortBy, sortDirection: sort.direction });
   }
 }

@@ -10,7 +10,7 @@ interface ProblemDetails {
   allowedStatuses?: RequestStatus[];
 }
 
-/** API field names, as they appear in a 400 answer, and what the user calls them. */
+/** API field names, as they appear in a 400 answer (in lower case), and what the user calls them. */
 const FIELD_LABELS: Record<string, string> = {
   search: 'חיפוש',
   status: 'סטטוס',
@@ -37,7 +37,8 @@ export function describeHttpError(error: unknown): string {
     return 'אין חיבור לשרת. ודאו שהשרת פועל ונסו שוב.';
   }
 
-  const problem = asProblemDetails(error.error);
+  const problem = readProblemDetails(error.error);
+
   switch (error.status) {
     case 400:
       return invalidFieldsMessage(problem);
@@ -47,11 +48,12 @@ export function describeHttpError(error: unknown): string {
       return 'הפנייה עודכנה בינתיים על ידי משתמש אחר, ולכן השינוי שלך לא נשמר.';
     case 422:
       return transitionMessage(problem);
-    default:
-      return error.status >= 500
-        ? 'אירעה תקלה בשרת והפעולה לא בוצעה. נסו שוב בעוד רגע.'
-        : `הפעולה נכשלה (קוד ${error.status}).`;
   }
+
+  if (error.status >= 500) {
+    return 'אירעה תקלה בשרת והפעולה לא בוצעה. נסו שוב בעוד רגע.';
+  }
+  return `הפעולה נכשלה (קוד ${error.status}).`;
 }
 
 /** 409: someone else changed the request after the user loaded it. */
@@ -59,35 +61,75 @@ export function isConflict(error: unknown): boolean {
   return error instanceof HttpErrorResponse && error.status === 409;
 }
 
-/**
- * No answer at all (0), a gateway error, or a 5xx without Problem Details – which the API always sends – means the
- * API itself was not reached. (When the API is down, the development server's proxy answers 500 with an empty body.)
- */
+/** True when the API itself was not reached. */
 function isServerUnreachable(error: HttpErrorResponse): boolean {
-  if ([0, 502, 503, 504].includes(error.status)) {
+  // 0: no answer at all. 502, 503, 504: a gateway answered instead of the API.
+  if (error.status === 0 || error.status === 502 || error.status === 503 || error.status === 504) {
     return true;
   }
-  return error.status >= 500 && asProblemDetails(error.error) === null;
+
+  // The API answers every 5xx with Problem Details. A 5xx without them came from somewhere else – for example,
+  // the development server's proxy answers 500 with an empty body when the API is down.
+  if (error.status >= 500 && readProblemDetails(error.error) === null) {
+    return true;
+  }
+
+  return false;
 }
 
-function asProblemDetails(body: unknown): ProblemDetails | null {
-  return body !== null && typeof body === 'object' && 'title' in body ? (body as ProblemDetails) : null;
+/** The body as Problem Details, or null if it is not one (every Problem Details answer of the API has a title). */
+function readProblemDetails(body: unknown): ProblemDetails | null {
+  if (body !== null && typeof body === 'object' && 'title' in body) {
+    return body as ProblemDetails;
+  }
+  return null;
 }
 
+/** "ערך לא תקין: שורות בעמוד, סטטוס." – every invalid field once, by its Hebrew name. */
 function invalidFieldsMessage(problem: ProblemDetails | null): string {
-  const fields = [...new Set(Object.keys(problem?.errors ?? {}).map(fieldLabel))];
-  return fields.length > 0 ? `ערך לא תקין: ${fields.join(', ')}.` : 'הנתונים שנשלחו אינם תקינים.';
+  const labels: string[] = [];
+
+  if (problem !== null && problem.errors) {
+    for (const key of Object.keys(problem.errors)) {
+      const label = fieldLabel(key);
+      if (!labels.includes(label)) {
+        labels.push(label);
+      }
+    }
+  }
+
+  if (labels.length === 0) {
+    return 'הנתונים שנשלחו אינם תקינים.';
+  }
+  return `ערך לא תקין: ${labels.join(', ')}.`;
 }
 
-/** Keys look like "PageSize", "$.status" or "Items[3].RowVersion". */
+/** The Hebrew name of a field. The keys of a 400 answer look like "PageSize", "$.status" or "Items[3].RowVersion". */
 function fieldLabel(key: string): string {
-  const name = key.replace(/^\$\./, '').split(/[.[]/)[0].toLowerCase();
-  return FIELD_LABELS[name] ?? key;
+  let name = key;
+
+  // "$.status" → "status" ("$." marks a field of the JSON body).
+  if (name.startsWith('$.')) {
+    name = name.substring(2);
+  }
+
+  // "Items[3].RowVersion" → "Items": the field's name ends at the first "." or "[".
+  name = name.split('.')[0];
+  name = name.split('[')[0];
+
+  const label = FIELD_LABELS[name.toLowerCase()];
+  if (label === undefined) {
+    return key; // a field without a Hebrew name is shown as the server named it
+  }
+  return label;
 }
 
+/** After a 422: which statuses the request may move to instead. */
 function transitionMessage(problem: ProblemDetails | null): string {
-  const allowed = (problem?.allowedStatuses ?? []).map((status) => STATUS_LABELS[status]);
-  return allowed.length > 0
-    ? `המעבר לסטטוס הזה אינו מותר. אפשר לעבור ל: ${allowed.join(', ')}.`
-    : 'המעבר לסטטוס הזה אינו מותר.';
+  if (problem === null || !problem.allowedStatuses || problem.allowedStatuses.length === 0) {
+    return 'המעבר לסטטוס הזה אינו מותר.';
+  }
+
+  const labels = problem.allowedStatuses.map((status) => STATUS_LABELS[status]);
+  return `המעבר לסטטוס הזה אינו מותר. אפשר לעבור ל: ${labels.join(', ')}.`;
 }

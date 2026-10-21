@@ -62,7 +62,8 @@ export class RequestDetailsDialogComponent {
   /** True after this user saved a change: the newest history row is that change, and it is marked. */
   protected readonly justSaved = signal(false);
 
-  private loadSubscription?: Subscription;
+  /** The load still on its way, if any. */
+  private loadSubscription: Subscription | null = null;
 
   constructor() {
     this.load();
@@ -70,16 +71,24 @@ export class RequestDetailsDialogComponent {
 
   /** Loads the request and its history together. A load still on its way is cancelled: only the newest counts. */
   protected load(): void {
-    this.loadSubscription?.unsubscribe();
+    if (this.loadSubscription !== null) {
+      this.loadSubscription.unsubscribe(); // aborts its HTTP calls
+    }
     this.loading.set(true);
     this.loadError.set(null);
 
-    this.loadSubscription = forkJoin({ request: this.api.getById(this.data.requestId), history: this.api.getHistory(this.data.requestId) })
+    // forkJoin runs both calls at the same time, and answers once – when both have answered.
+    const requestAndHistory = forkJoin({
+      request: this.api.getById(this.data.requestId),
+      history: this.api.getHistory(this.data.requestId),
+    });
+
+    this.loadSubscription = requestAndHistory
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ request, history }) => {
-          this.request.set(request);
-          this.history.set(history);
+        next: (loaded) => {
+          this.request.set(loaded.request);
+          this.history.set(loaded.history);
           this.newStatus.set(null);
           this.loading.set(false);
         },
@@ -93,8 +102,8 @@ export class RequestDetailsDialogComponent {
   protected save(): void {
     const request = this.request();
     const newStatus = this.newStatus();
-    if (!request || !newStatus) {
-      return;
+    if (request === null || newStatus === null) {
+      return; // the button is disabled in this case; this is only a safety check
     }
 
     this.saving.set(true);
@@ -113,11 +122,9 @@ export class RequestDetailsDialogComponent {
           // The answer carries the new version: the screen uses it at once, so the next change is based on it.
           this.request.set(updated);
           this.newStatus.set(null);
-          this.snackBar.open(
-            `הסטטוס עודכן ל"${STATUS_LABELS[updated.status]}" ונרשם בהיסטוריה על שם ${this.currentUser.nameForHistory()}`,
-            undefined,
-            { duration: 4000 },
-          );
+          const message = `הסטטוס עודכן ל"${STATUS_LABELS[updated.status]}" ונרשם בהיסטוריה על שם ${this.currentUser.nameForHistory()}`;
+          this.snackBar.open(message, undefined, { duration: 4000 });
+          // The history now has a new row – the change just made.
           this.load();
         },
         error: (error: unknown) => {

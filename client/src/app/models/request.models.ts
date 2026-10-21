@@ -1,10 +1,10 @@
 // The shapes of the API's data – they mirror the DTOs in EmployerRequests.Application/DTOs.
 
-export const REQUEST_STATUSES = ['New', 'InProgress', 'Waiting', 'Completed'] as const;
-export type RequestStatus = (typeof REQUEST_STATUSES)[number];
+export type RequestStatus = 'New' | 'InProgress' | 'Waiting' | 'Completed';
+export const REQUEST_STATUSES: RequestStatus[] = ['New', 'InProgress', 'Waiting', 'Completed'];
 
-export const REQUEST_PRIORITIES = ['Low', 'Medium', 'High'] as const;
-export type RequestPriority = (typeof REQUEST_PRIORITIES)[number];
+export type RequestPriority = 'Low' | 'Medium' | 'High';
+export const REQUEST_PRIORITIES: RequestPriority[] = ['Low', 'Medium', 'High'];
 
 export type SortField = 'createdAt' | 'updatedAt' | 'title' | 'organizationName' | 'status' | 'priority';
 export type SortDirection = 'asc' | 'desc';
@@ -51,6 +51,12 @@ export interface RequestsSummary {
   calculatedAt: string;
 }
 
+/** One request of a bulk change: its id and the version the user saw. */
+export interface BulkChangeItem {
+  id: number;
+  rowVersion: string;
+}
+
 export type BulkItemOutcome = 'Updated' | 'NotFound' | 'Conflict' | 'InvalidTransition';
 
 export interface BulkChangeStatusResult {
@@ -79,7 +85,8 @@ export interface RequestQuery extends RequestFilters {
   sortDirection: SortDirection;
 }
 
-export const EMPTY_FILTERS: RequestFilters = {
+/** The first screen: no filters, the newest requests first, 20 per page. */
+export const DEFAULT_QUERY: RequestQuery = {
   search: '',
   status: [],
   priority: [],
@@ -87,22 +94,22 @@ export const EMPTY_FILTERS: RequestFilters = {
   assignedTo: '',
   createdFrom: '',
   createdTo: '',
-};
-
-export const DEFAULT_QUERY: RequestQuery = {
-  ...EMPTY_FILTERS,
   page: 1,
   pageSize: 20,
   sortBy: 'createdAt',
   sortDirection: 'desc',
 };
 
-export function filtersOf(query: RequestQuery): RequestFilters {
-  const { search, status, priority, organizationName, assignedTo, createdFrom, createdTo } = query;
-  return { search, status, priority, organizationName, assignedTo, createdFrom, createdTo };
-}
-
-/** Value equality for plain data (filters, queries). */
-export function sameValue<T>(a: T, b: T): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+/** True if both have exactly the same filters. Paging and sorting are not compared. */
+export function sameFilters(a: RequestFilters, b: RequestFilters): boolean {
+  return (
+    a.search === b.search &&
+    // Two arrays are never === each other, so their values are compared: ['New', 'Waiting'] → "New,Waiting".
+    a.status.join(',') === b.status.join(',') &&
+    a.priority.join(',') === b.priority.join(',') &&
+    a.organizationName === b.organizationName &&
+    a.assignedTo === b.assignedTo &&
+    a.createdFrom === b.createdFrom &&
+    a.createdTo === b.createdTo
+  );
 }

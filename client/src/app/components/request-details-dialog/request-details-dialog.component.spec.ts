@@ -127,7 +127,7 @@ const ALLOWED_MOVES: Record<RequestStatus, RequestStatus[]> = {
   Completed: ['InProgress'],
 };
 
-function details(status: RequestDetails['status'], rowVersion: string): RequestDetails {
+function details(status: RequestStatus, rowVersion: string): RequestDetails {
   return {
     id: 7,
     title: 'בירור תשלום',
@@ -142,8 +142,10 @@ function details(status: RequestDetails['status'], rowVersion: string): RequestD
   };
 }
 
+/** The Material select of the dialog (the status list). */
 function statusSelect(fixture: ComponentFixture<RequestDetailsDialogComponent>): MatSelect {
-  return fixture.debugElement.query(By.directive(MatSelect)).componentInstance as MatSelect;
+  const element = fixture.debugElement.query(By.directive(MatSelect));
+  return element.componentInstance as MatSelect;
 }
 
 /** What the user does when picking a status in the list. */
@@ -157,16 +159,23 @@ function offeredStatuses(fixture: ComponentFixture<RequestDetailsDialogComponent
   return statusSelect(fixture).options.map((option) => option.value as RequestStatus);
 }
 
+/** The status chosen in the list, or null when none is chosen. */
 function chosenStatus(fixture: ComponentFixture<RequestDetailsDialogComponent>): RequestStatus | null {
-  return (statusSelect(fixture).value as RequestStatus | null | undefined) ?? null;
+  const value = statusSelect(fixture).value;
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return value as RequestStatus;
 }
 
 function findButton(root: HTMLElement, text: string): HTMLButtonElement {
-  const button = [...root.querySelectorAll('button')].find((candidate) => candidate.textContent?.trim() === text);
-  if (!button) {
-    throw new Error(`No button "${text}"`);
+  const buttons = root.querySelectorAll('button');
+  for (const button of Array.from(buttons)) {
+    if (button.textContent !== null && button.textContent.trim() === text) {
+      return button;
+    }
   }
-  return button;
+  throw new Error(`No button "${text}"`);
 }
 
 function clickButton(root: HTMLElement, text: string): void {

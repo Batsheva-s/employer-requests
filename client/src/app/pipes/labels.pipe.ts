@@ -6,7 +6,7 @@ import { RequestPriority, RequestStatus } from '../models/request.models';
 @Pipe({ name: 'statusLabel' })
 export class StatusLabelPipe implements PipeTransform {
   transform(status: RequestStatus): string {
-    return STATUS_LABELS[status] ?? status;
+    return STATUS_LABELS[status];
   }
 }
 
@@ -14,6 +14,6 @@ export class StatusLabelPipe implements PipeTransform {
 @Pipe({ name: 'priorityLabel' })
 export class PriorityLabelPipe implements PipeTransform {
   transform(priority: RequestPriority): string {
-    return PRIORITY_LABELS[priority] ?? priority;
+    return PRIORITY_LABELS[priority];
   }
 }
