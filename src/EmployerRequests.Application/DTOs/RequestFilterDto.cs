@@ -46,14 +46,15 @@ public class RequestFilterDto : IValidatableObject
     }
 
     /// <summary>
-    /// The rules that attributes cannot express. ASP.NET Core runs them before the action, like the attributes,
-    /// and answers 400 with every error found.
+    /// The rules that attributes cannot express. ASP.NET Core runs them before the action – once the attributes
+    /// have passed – and answers 400 if one is broken.
     /// </summary>
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         var errors = new List<ValidationResult>();
 
-        // The query string binder also accepts numbers (?status=99), so every value is checked against the enum.
+        // Every value must be one of the enum's values. Through HTTP, model binding already rejects ?status=99 (400);
+        // this check keeps the DTO correct by itself too – for example when a test or other code creates it.
         if (Status != null && Status.Any(status => !Enum.IsDefined(status)))
         {
             errors.Add(new ValidationResult("Unknown status.", new[] { nameof(Status) }));

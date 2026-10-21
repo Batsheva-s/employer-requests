@@ -30,7 +30,7 @@ public class ValidationTests
     [Fact]
     public void An_unknown_status_value_is_rejected()
     {
-        // 99 is not one of the enum's values – what "?status=99" in the query string produces.
+        // 99 is not one of the enum's values. (Through HTTP, model binding already answers ?status=99 with 400.)
         var errors = Validate(new RequestSearchDto { Status = new[] { RequestStatus.New, (RequestStatus)99 } });
 
         Assert.Contains(errors, error => error.MemberNames.Contains(nameof(RequestFilterDto.Status)));

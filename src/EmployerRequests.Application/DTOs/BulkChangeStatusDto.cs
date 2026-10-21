@@ -15,7 +15,10 @@ public class BulkChangeStatusDto : IValidatableObject
     [Required, MinLength(1), MaxLength(MaxItems)]
     public required List<BulkChangeStatusItemDto> Items { get; set; }
 
-    /// <summary>The rules that attributes cannot express. ASP.NET Core runs them before the action.</summary>
+    /// <summary>
+    /// The rules that attributes cannot express. ASP.NET Core runs them before the action – once the attributes
+    /// have passed, so Items is not null here – and answers 400 if one is broken.
+    /// </summary>
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         var errors = new List<ValidationResult>();
