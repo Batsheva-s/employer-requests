@@ -1,10 +1,12 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { MatSelect, MatSelectChange } from '@angular/material/select';
+import { By } from '@angular/platform-browser';
 import { currentUserInterceptor } from '../../interceptors/current-user.interceptor';
-import { RequestDetails, RequestStatusChange } from '../../models/request.models';
+import { RequestDetails, RequestStatus, RequestStatusChange } from '../../models/request.models';
 import { CurrentUserService } from '../../services/current-user.service';
 import { RequestDetailsDialogComponent } from './request-details-dialog.component';
 
@@ -33,6 +35,7 @@ describe('RequestDetailsDialogComponent', () => {
     respondWithRequest(details('New', 'version-1'), []);
     await fixture.whenStable();
 
+    await chooseStatus(fixture, 'InProgress');
     clickButton(fixture.nativeElement, 'עדכון סטטוס');
 
     // The change carries the version the user saw. Someone else saved first: the server answers 409.
@@ -63,6 +66,7 @@ describe('RequestDetailsDialogComponent', () => {
     await fixture.whenStable();
 
     expect(fixture.nativeElement.textContent).toContain('יירשם בהיסטוריה על שם: דנה');
+    await chooseStatus(fixture, 'InProgress');
     clickButton(fixture.nativeElement, 'עדכון סטטוס');
 
     // The name travels in a header (URL-encoded, since headers are ASCII); the server records it.
@@ -85,11 +89,43 @@ describe('RequestDetailsDialogComponent', () => {
     expect(newestRow?.textContent).toContain('דנה');
   });
 
+  it('offers only the allowed statuses, chooses none for the user, and after a save waits for a new choice', async () => {
+    const fixture = TestBed.createComponent(RequestDetailsDialogComponent);
+    respondWithRequest(details('Waiting', 'version-1'), []);
+    await fixture.whenStable();
+
+    expect(offeredStatuses(fixture)).toEqual(['InProgress', 'Completed']);
+    expect(chosenStatus(fixture)).toBeNull();
+    expect(findButton(fixture.nativeElement, 'עדכון סטטוס').disabled).toBe(true);
+
+    await chooseStatus(fixture, 'InProgress');
+    expect(findButton(fixture.nativeElement, 'עדכון סטטוס').disabled).toBe(false);
+    clickButton(fixture.nativeElement, 'עדכון סטטוס');
+
+    http.expectOne((request) => request.method === 'PATCH').flush(details('InProgress', 'version-2'));
+    respondWithRequest(details('InProgress', 'version-2'), []);
+    await fixture.whenStable();
+
+    // "Waiting" – where the request just came from – is offered again, but it is not chosen:
+    // one more click on "Update" cannot undo the change by accident.
+    expect(offeredStatuses(fixture)).toEqual(['Waiting', 'Completed']);
+    expect(chosenStatus(fixture)).toBeNull();
+    expect(findButton(fixture.nativeElement, 'עדכון סטטוס').disabled).toBe(true);
+  });
+
   function respondWithRequest(request: RequestDetails, history: RequestStatusChange[]): void {
     http.expectOne('/api/requests/7').flush(request);
     http.expectOne('/api/requests/7/history').flush(history);
   }
 });
+
+/** The statuses each status may move to – the same rules as the server's StatusWorkflow. */
+const ALLOWED_MOVES: Record<RequestStatus, RequestStatus[]> = {
+  New: ['InProgress', 'Waiting'],
+  InProgress: ['Waiting', 'Completed'],
+  Waiting: ['InProgress', 'Completed'],
+  Completed: ['InProgress'],
+};
 
 function details(status: RequestDetails['status'], rowVersion: string): RequestDetails {
   return {
@@ -102,14 +138,37 @@ function details(status: RequestDetails['status'], rowVersion: string): RequestD
     createdAt: '2026-10-01T08:00:00+00:00',
     updatedAt: '2026-10-01T08:00:00+00:00',
     rowVersion,
-    allowedNextStatuses: status === 'New' ? ['InProgress', 'Waiting'] : ['InProgress', 'Completed'],
+    allowedNextStatuses: ALLOWED_MOVES[status],
   };
 }
 
-function clickButton(root: HTMLElement, text: string): void {
+function statusSelect(fixture: ComponentFixture<RequestDetailsDialogComponent>): MatSelect {
+  return fixture.debugElement.query(By.directive(MatSelect)).componentInstance as MatSelect;
+}
+
+/** What the user does when picking a status in the list. */
+async function chooseStatus(fixture: ComponentFixture<RequestDetailsDialogComponent>, status: RequestStatus): Promise<void> {
+  const select = statusSelect(fixture);
+  select.selectionChange.emit(new MatSelectChange(select, status));
+  await fixture.whenStable();
+}
+
+function offeredStatuses(fixture: ComponentFixture<RequestDetailsDialogComponent>): RequestStatus[] {
+  return statusSelect(fixture).options.map((option) => option.value as RequestStatus);
+}
+
+function chosenStatus(fixture: ComponentFixture<RequestDetailsDialogComponent>): RequestStatus | null {
+  return (statusSelect(fixture).value as RequestStatus | null | undefined) ?? null;
+}
+
+function findButton(root: HTMLElement, text: string): HTMLButtonElement {
   const button = [...root.querySelectorAll('button')].find((candidate) => candidate.textContent?.trim() === text);
   if (!button) {
     throw new Error(`No button "${text}"`);
   }
-  button.click();
+  return button;
+}
+
+function clickButton(root: HTMLElement, text: string): void {
+  findButton(root, text).click();
 }

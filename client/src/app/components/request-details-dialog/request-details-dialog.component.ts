@@ -21,6 +21,8 @@ export interface RequestDetailsDialogData {
 
 /**
  * One request: its details, a status change, and its status history.
+ * No status is preselected: the user always picks the next one. (The first allowed status is often the one the
+ * request just came from, so a preselected value was one click away from undoing the change.)
  * The status change carries the version the user is looking at. If someone else changed the request in the
  * meantime, the server refuses (409): the dialog says so, loads the current state, and lets the user decide again.
  * After a successful change the history is loaded again, and its newest row – the change just made – is marked.
@@ -78,7 +80,7 @@ export class RequestDetailsDialogComponent {
         next: ({ request, history }) => {
           this.request.set(request);
           this.history.set(history);
-          this.newStatus.set(request.allowedNextStatuses[0] ?? null);
+          this.newStatus.set(null);
           this.loading.set(false);
         },
         error: (error: unknown) => {
@@ -110,7 +112,7 @@ export class RequestDetailsDialogComponent {
           this.justSaved.set(true);
           // The answer carries the new version: the screen uses it at once, so the next change is based on it.
           this.request.set(updated);
-          this.newStatus.set(updated.allowedNextStatuses[0] ?? null);
+          this.newStatus.set(null);
           this.snackBar.open(
             `הסטטוס עודכן ל"${STATUS_LABELS[updated.status]}" ונרשם בהיסטוריה על שם ${this.currentUser.nameForHistory()}`,
             undefined,
