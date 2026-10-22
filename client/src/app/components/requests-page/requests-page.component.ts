@@ -14,11 +14,11 @@ import { RequestsTableComponent } from '../requests-table/requests-table.compone
 import { RequestsStateService } from '../../services/requests-state.service';
 
 /**
- * The requests screen – the client's one smart component.
- * It provides RequestsStateService (providers below): one state per page, created and destroyed with it, and
- * shared by the summary, the filters, the bulk bar and the table. Those components hold no state and inject no
- * service: the page passes them the state's signals as inputs, and their outputs call the state's methods.
- * The details dialog loads and saves on its own (RequestsApiService); when it closes, the page reloads.
+ * The requests screen – the smart component.
+ * RequestsStateService is provided here (providers below), so the page has one state of its own.
+ * The components inside it – the summary, the filters, the bulk bar and the table – only show data and report
+ * what the user does. The page gives them the data and acts on what they report; they never call a service.
+ * The details dialog loads and saves on its own; when it closes, the page reloads.
  */
 @Component({
   selector: 'app-requests-page',

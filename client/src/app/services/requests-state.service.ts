@@ -20,9 +20,9 @@ import { RequestsApiService } from './requests-api.service';
 
 /**
  * The state of the requests screen: the query, the current page of results, the summary, loading and errors,
- * and the selection. Provided by the page component, so each page has one instance – one state, created and
- * destroyed with the page. The page reads its signals and calls its methods; the components inside the page never
- * use it directly. Only this service asks the API for the list and for the summary.
+ * and the selection. Provided by the page component, so each page has its own instance, which lives as long as
+ * the page does. Only the page uses it; the components inside the page get their data from the page.
+ * Only this service asks the API for the list and for the summary.
  * The client never filters, sorts or pages: every change of the query asks the server for one page.
  */
 @Injectable()
