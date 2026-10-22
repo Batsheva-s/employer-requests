@@ -13,6 +13,7 @@ public interface IRequestService
     /// <summary>Counts for the same filters as the list: by status, by priority, and the busiest handlers.</summary>
     Task<RequestsSummaryDto> GetSummaryAsync(RequestFilterDto filter, CancellationToken cancellationToken);
 
+    /// <summary>One request, with its current version and the statuses it may move to.</summary>
     /// <exception cref="NotFoundException">There is no request with this id.</exception>
     Task<RequestDetailsDto> GetByIdAsync(int id, CancellationToken cancellationToken);
 

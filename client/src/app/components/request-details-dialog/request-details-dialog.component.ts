@@ -21,6 +21,7 @@ export interface RequestDetailsDialogData {
 
 /**
  * One request: its details, a status change, and its status history.
+ * It calls the API itself (RequestsApiService) and is not part of the page's state; on close, the page reloads.
  * No status is preselected: the user always picks the next one. (The first allowed status is often the one the
  * request just came from, so a preselected value was one click away from undoing the change.)
  * The status change carries the version the user is looking at. If someone else changed the request in the

@@ -14,7 +14,7 @@ import {
   RequestsSummary,
 } from '../models/request.models';
 
-/** The HTTP calls of the requests API – one method per endpoint, no state. */
+/** The HTTP calls of the requests API – one method per endpoint, no state, so one instance serves the whole app. */
 @Injectable({ providedIn: 'root' })
 export class RequestsApiService {
   private readonly http = inject(HttpClient);

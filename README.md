@@ -335,7 +335,7 @@ dotnet ef migrations add <Name> --project src/EmployerRequests.Infrastructure --
 ```text
 client/src/app/
   components/
-    requests-page/              המסך: מחבר את שירות המצב לרכיבים; פתיחת הפרטים; עדכון מרוכז
+    requests-page/              המסך, הרכיב החכם: מספק את שירות המצב ומחבר אותו לרכיבים; פתיחת הפרטים; עדכון מרוכז
     request-filters/            טופס הסינון (Debounce)
     requests-table/             הטבלה: מיון ובחירה
     requests-summary/           מציג את הנתונים המסכמים
@@ -351,7 +351,7 @@ client/src/app/
   utils/                        הודעות שגיאה בעברית, תוויות, תרגום ה-Paginator
 ```
 
-* **הפרדת אחריות.** כל פנייה לשרת עוברת דרך [`RequestsApiService`](client/src/app/services/requests-api.service.ts) – מתודה לכל Endpoint, בלי מצב. מצב המסך – סינון, דפדוף, מיון, בחירה, הרשימה והסיכום – נמצא ב-[`RequestsStateService`](client/src/app/services/requests-state.service.ts), עם Signals, והוא היחיד שמבקש מהשרת את הרשימה ואת הסיכום. רכיבי התצוגה – הסינון, הטבלה, הסיכום וסרגל העדכון המרוכז – רק מציגים ומדווחים על פעולות (`input` / `output`). חלון הפרטים טוען בעצמו את הפנייה ואת ההיסטוריה שלה.
+* **הפרדת אחריות.** כל פנייה לשרת עוברת דרך [`RequestsApiService`](client/src/app/services/requests-api.service.ts) – מתודה לכל Endpoint, בלי מצב. מצב המסך – סינון, דפדוף, מיון, בחירה, הרשימה והסיכום – נמצא ב-[`RequestsStateService`](client/src/app/services/requests-state.service.ts), עם Signals, והוא היחיד שמבקש מהשרת את הרשימה ואת הסיכום. הדף מספק אותו ב-`providers` שלו: מצב אחד לכל דף, שנוצר ונהרס יחד איתו. רכיבי התצוגה – הסינון, הטבלה, הסיכום וסרגל העדכון המרוכז – רק מציגים ומדווחים על פעולות (`input` / `output`). חלון הפרטים טוען בעצמו את הפנייה ואת ההיסטוריה שלה.
 * **הכול בצד השרת.** הלקוח לא מסנן, לא ממיין ולא מדפדף. כל שינוי בשאילתה מבקש עמוד אחד.
 * **Debounce.** הטופס מחכה 300ms אחרי ההקשה האחרונה, ואז שולח את הסינון – פעם אחת, ורק אם הוא השתנה (`distinctUntilChanged`).
 * **ביטול בקשות.** שירות המצב מעביר כל חיפוש – וכל טעינה של הסיכום – דרך `switchMap`: בקשה חדשה מבטלת את הקודמת שעוד בדרך. הדפדפן מבטל את קריאת ה-HTTP, ה-`CancellationToken` בשרת מבטל את השאילתה ב-SQL Server, ותשובה ישנה לעולם לא דורסת תשובה חדשה.

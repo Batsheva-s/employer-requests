@@ -7,7 +7,8 @@ import { RequestStatus } from '../../models/request.models';
 import { StatusLabelPipe } from '../../pipes/labels.pipe';
 
 /**
- * Appears while requests are selected: pick one status and apply it to all of them.
+ * Appears while requests are selected: the user picks one status for all of them. The bar only reports the choice
+ * (apply); the page sends the change.
  * No status is preselected, as in the request dialog: one click must never change many requests to a status
  * the user did not choose.
  */

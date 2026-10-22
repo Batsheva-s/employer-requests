@@ -9,8 +9,8 @@ namespace EmployerRequests.Infrastructure.Repositories;
 
 /// <summary>
 /// The EF Core implementation of <see cref="IRequestRepository"/>.
-/// Every read builds one query that SQL Server runs in full: only the requested page – and only the columns the
-/// DTO needs – ever leaves the database. Nothing is filtered, sorted or paged in memory.
+/// Every read runs in full in SQL Server: only the requested page – and only the columns the DTO needs – ever
+/// leaves the database. Nothing is filtered, sorted or paged in memory.
 /// </summary>
 public class RequestRepository : IRequestRepository
 {
